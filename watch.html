@@ -48,7 +48,7 @@
     </div>
     <div style="margin-top:20px;">
         <input type="text" id="commentInput" placeholder="コメントを入力..." style="width:80%; padding:8px;">
-        <button onclick="sendComment()">投稿</button>
+        <button id="commentBtn">投稿</button>
         <div id="commentList"></div>
     </div>
 </div>
@@ -83,10 +83,15 @@
     });
 
     onAuthStateChanged(auth, u => { 
-        user = u; loadVideo(); loadComments();
-        document.getElementById('subBtn').onclick = toggleSub;
-        document.getElementById('likeBtn').onclick = handleLike;
+        user = u; 
+        loadVideo(); 
+        loadComments();
     });
+
+    // 各ボタンにイベントを直接紐付け
+    document.getElementById('subBtn').addEventListener('click', toggleSub);
+    document.getElementById('likeBtn').addEventListener('click', handleLike);
+    document.getElementById('commentBtn').addEventListener('click', sendComment);
 
     function loadVideo() {
         if(!vId) return;
@@ -103,10 +108,14 @@
                 document.getElementById('admLikes').value = d.likes || 0;
             }
 
-            // 高評価済みチェック
             if(user) {
                 const lSnap = await getDoc(doc(db, "videos", vId, "likes", user.uid));
                 document.getElementById('likeBtn').classList.toggle('active', lSnap.exists());
+                
+                // 登録状態の確認
+                const sSnap = await getDoc(doc(db, "users", user.uid, "subscriptions", authorId));
+                document.getElementById('subBtn').innerText = sSnap.exists() ? "登録済み" : "チャンネル登録";
+                document.getElementById('subBtn').style.background = sSnap.exists() ? "#606060" : "#0f0f0f";
             }
 
             const uSnap = await getDoc(doc(db, "users", d.userId));
@@ -120,13 +129,11 @@
         });
     }
 
-    // ★高評価を1回までに制限
-    window.handleLike = async () => {
+    async function handleLike() {
         if (!user) return alert("ログインが必要です");
         const likeRef = doc(db, "videos", vId, "likes", user.uid);
         const videoRef = doc(db, "videos", vId);
         const lSnap = await getDoc(likeRef);
-
         if (lSnap.exists()) {
             await deleteDoc(likeRef);
             await updateDoc(videoRef, { likes: increment(-1) });
@@ -134,22 +141,25 @@
             await setDoc(likeRef, { at: serverTimestamp() });
             await updateDoc(videoRef, { likes: increment(1) });
         }
-    };
+    }
 
-    // ★チャンネル登録ボタンの反応修正
-    window.toggleSub = async () => {
+    // ★登録機能の修正：ボタンの状態反映とエラー回避
+    async function toggleSub() {
         if (!user) return alert("ログインしてください");
+        if (!authorId) return;
         if (user.uid === authorId) return alert("自分は登録できません");
+        
         const subRef = doc(db, "users", user.uid, "subscriptions", authorId);
         const s = await getDoc(subRef);
+        
         if (s.exists()) { 
             await deleteDoc(subRef); 
-            alert("解除しました"); 
+            alert("登録を解除しました"); 
         } else { 
             await setDoc(subRef, { at: serverTimestamp() }); 
-            alert("登録しました"); 
+            alert("チャンネル登録しました"); 
         }
-    };
+    }
 
     window.adminSave = async () => {
         if (user?.uid !== ADMIN_ID) return;
@@ -161,7 +171,7 @@
         alert("神権限で更新しました");
     };
 
-    window.sendComment = async () => {
+    async function sendComment() {
         const input = document.getElementById('commentInput');
         if (!input.value || !user) return alert("ログインしてください");
         const uSnap = await getDoc(doc(db, "users", user.uid));
@@ -171,7 +181,7 @@
             userName: ud.name, userIcon: ud.icon, createdAt: serverTimestamp()
         });
         input.value = "";
-    };
+    }
 
     function loadComments() {
         const q = query(collection(db, "comments"), where("videoId", "==", vId), orderBy("createdAt", "desc"));
@@ -187,7 +197,7 @@
         });
     }
 
-    window.toChannel = () => location.href = `channel.html?uid=${authorId}`;
+    window.toChannel = () => { if(authorId) location.href = `channel.html?uid=${authorId}`; };
 </script>
 </body>
 </html>
