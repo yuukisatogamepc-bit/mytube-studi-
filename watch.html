@@ -5,57 +5,82 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MyTube - 再生</title>
     <style>
-        body { font-family: sans-serif; margin: 0; background: #f9f9f9; }
-        header { display: flex; align-items: center; padding: 10px 20px; background: white; border-bottom: 1px solid #ddd; position: sticky; top: 0; z-index: 100; }
-        .logo { color: red; font-size: 24px; font-weight: bold; cursor: pointer; text-decoration: none; }
-        .main-container { max-width: 900px; margin: 20px auto; padding: 0 15px; }
-        video { width: 100%; background: #000; border-radius: 12px; aspect-ratio: 16/9; }
-        #adminPanel { display: none; background: #222; color: gold; padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid gold; }
-        #adminPanel input { background: #333; color: #fff; border: 1px solid gold; padding: 4px; width: 65px; margin-right: 10px; }
-        .video-info { margin-top: 15px; }
-        .stats-bar { display: flex; align-items: center; gap: 15px; margin: 10px 0; color: #606060; font-size: 14px; }
-        .like-btn { background: #eee; border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.3s; }
-        .like-btn.active { background: #065fd4; color: white; }
-        .channel-row { display: flex; align-items: center; gap: 12px; padding: 15px 0; border-top: 1px solid #eee; border-bottom: 1px solid #eee; margin-top: 15px; }
-        .channel-icon { width: 40px; height: 40px; border-radius: 50%; cursor: pointer; object-fit: cover; }
-        .sub-btn { background: #0f0f0f; color: white; border-radius: 20px; padding: 8px 18px; border: none; font-weight: bold; cursor: pointer; margin-left: auto; }
-        .comment-item { display: flex; gap: 10px; margin-top: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        :root { --yt-bg: #0f0f0f; --yt-text: #ffffff; --yt-gray: #aaaaaa; --yt-card: #272727; }
+        body { font-family: "Roboto", Arial, sans-serif; margin: 0; background: var(--yt-bg); color: var(--yt-text); }
+        header { display: flex; align-items: center; padding: 10px 20px; background: var(--yt-bg); position: sticky; top: 0; z-index: 100; }
+        .logo { color: #ff0000; font-size: 22px; font-weight: bold; cursor: pointer; text-decoration: none; display: flex; align-items: center; }
+        
+        .main-container { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1fr 350px; gap: 24px; padding: 20px; }
+        @media (max-width: 1000px) { .main-container { grid-template-columns: 1fr; } }
+
+        .video-section video { width: 100%; border-radius: 12px; background: #000; aspect-ratio: 16/9; }
+        
+        #adminPanel { display: none; background: #333; color: gold; padding: 15px; border-radius: 12px; margin-bottom: 15px; border: 1px solid gold; }
+        #adminPanel input { background: #444; color: #fff; border: 1px solid gold; padding: 6px; width: 70px; border-radius: 4px; }
+
+        .video-title { font-size: 20px; font-weight: bold; margin: 12px 0 8px 0; }
+        .stats-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .v-meta { color: var(--yt-gray); font-size: 14px; }
+        .btn-group { display: flex; gap: 8px; }
+        .yt-btn { background: var(--yt-card); color: white; border: none; padding: 8px 16px; border-radius: 20px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+        .yt-btn:hover { background: #3f3f3f; }
+        .yt-btn.active { background: #ffffff; color: #000; }
+
+        .channel-info { background: var(--yt-card); padding: 15px; border-radius: 12px; display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+        .channel-icon { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; cursor: pointer; }
+        .sub-btn { background: #f1f1f1; color: #0f0f0f; border-radius: 20px; padding: 8px 16px; border: none; font-weight: bold; cursor: pointer; margin-left: auto; }
+        .sub-btn.subscribed { background: #333; color: #aaa; }
+
+        .comment-section { margin-top: 24px; }
+        .comment-input-box { display: flex; gap: 12px; margin-bottom: 20px; }
+        .comment-input-box input { background: transparent; border: none; border-bottom: 1px solid #333; color: white; width: 100%; padding: 8px 0; outline: none; }
+        .comment-input-box input:focus { border-bottom: 2px solid white; }
+        .comment-item { display: flex; gap: 12px; margin-bottom: 16px; }
         .c-icon { width: 32px; height: 32px; border-radius: 50%; }
+        .c-body { font-size: 14px; }
+        .c-name { font-weight: bold; font-size: 13px; margin-bottom: 2px; }
     </style>
 </head>
 <body>
 <header><a href="index.html" class="logo">MyTube</a></header>
 <div class="main-container">
-    <div id="adminPanel">
-        👑 管理: 再生<input type="number" id="admViews"> 評価<input type="number" id="admLikes"> 登録者<input type="number" id="admSubs">
-        <button onclick="adminSave()" style="background:gold; border:none; padding:5px 10px; cursor:pointer; font-weight:bold;">保存</button>
-    </div>
-    <video id="player" controls autoplay></video>
-    <div class="video-info">
-        <h2 id="vTitle" style="margin:10px 0;">読み込み中...</h2>
+    <div class="video-section">
+        <div id="adminPanel">
+            👑 管理: 再生 <input type="number" id="admViews"> 評価 <input type="number" id="admLikes"> 登録 <input type="number" id="admSubs">
+            <button onclick="adminSave()" style="padding:5px 10px; cursor:pointer;">保存</button>
+        </div>
+        <video id="player" controls autoplay></video>
+        <h2 class="video-title" id="vTitle">読み込み中...</h2>
         <div class="stats-bar">
-            <span>再生回数 <span id="vViews">0</span>回</span>
-            <button class="like-btn" id="likeBtn">👍 <span id="vLikes">0</span></button>
+            <div class="v-meta"><span id="vViews">0</span>回視聴</div>
+            <div class="btn-group">
+                <button class="yt-btn" id="likeBtn">👍 <span id="vLikes">0</span></button>
+            </div>
+        </div>
+        <div class="channel-info">
+            <img src="" class="channel-icon" id="cIcon" onclick="toChannel()">
+            <div>
+                <div id="cName" style="font-weight:bold; cursor:pointer;" onclick="toChannel()">ユーザー</div>
+                <div id="cSubs" style="font-size:12px; color:var(--yt-gray);">登録者 0人</div>
+            </div>
+            <button class="sub-btn" id="subBtn">チャンネル登録</button>
+        </div>
+        <div class="comment-section">
+            <div class="comment-input-box">
+                <input type="text" id="commentInput" placeholder="コメントを追加...">
+                <button class="yt-btn" id="commentBtn">投稿</button>
+            </div>
+            <div id="commentList"></div>
         </div>
     </div>
-    <div class="channel-row">
-        <img src="" class="channel-icon" id="cIcon" onclick="toChannel()">
-        <div>
-            <div id="cName" style="font-weight:bold; cursor:pointer;" onclick="toChannel()">ユーザー</div>
-            <div id="cSubs" style="font-size:12px; color:#606060;">登録者 0人</div>
-        </div>
-        <button class="sub-btn" id="subBtn">チャンネル登録</button>
-    </div>
-    <div style="margin-top:20px;">
-        <input type="text" id="commentInput" placeholder="コメントを入力..." style="width:80%; padding:8px;">
-        <button id="commentBtn">投稿</button>
-        <div id="commentList"></div>
+    <div class="side-section">
+        <p style="color:var(--yt-gray); font-size:14px;">関連動画 (準備中)</p>
     </div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where, orderBy, addDoc, deleteDoc, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where, addDoc, deleteDoc, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
@@ -88,15 +113,13 @@
         loadComments();
     });
 
-    // 各ボタンにイベントを直接紐付け
-    document.getElementById('subBtn').addEventListener('click', toggleSub);
-    document.getElementById('likeBtn').addEventListener('click', handleLike);
-    document.getElementById('commentBtn').addEventListener('click', sendComment);
+    document.getElementById('subBtn').onclick = toggleSub;
+    document.getElementById('likeBtn').onclick = handleLike;
+    document.getElementById('commentBtn').onclick = sendComment;
 
     function loadVideo() {
         if(!vId) return;
         onSnapshot(doc(db, "videos", vId), async snap => {
-            if(!snap.exists()) return;
             const d = snap.data(); authorId = d.userId;
             document.getElementById('player').src = d.url;
             document.getElementById('vTitle').innerText = d.title;
@@ -111,21 +134,18 @@
             if(user) {
                 const lSnap = await getDoc(doc(db, "videos", vId, "likes", user.uid));
                 document.getElementById('likeBtn').classList.toggle('active', lSnap.exists());
-                
-                // 登録状態の確認
                 const sSnap = await getDoc(doc(db, "users", user.uid, "subscriptions", authorId));
                 document.getElementById('subBtn').innerText = sSnap.exists() ? "登録済み" : "チャンネル登録";
-                document.getElementById('subBtn').style.background = sSnap.exists() ? "#606060" : "#0f0f0f";
+                document.getElementById('subBtn').className = sSnap.exists() ? "sub-btn subscribed" : "sub-btn";
             }
 
-            const uSnap = await getDoc(doc(db, "users", d.userId));
-            if (uSnap.exists()) {
+            onSnapshot(doc(db, "users", d.userId), (uSnap) => {
                 const ud = uSnap.data();
                 document.getElementById('cName').innerText = ud.name;
                 document.getElementById('cIcon').src = ud.icon || "";
                 document.getElementById('cSubs').innerText = `登録者 ${(ud.subCount || 0).toLocaleString()}人`;
                 if(isAdmin) document.getElementById('admSubs').value = ud.subCount || 0;
-            }
+            });
         });
     }
 
@@ -143,21 +163,18 @@
         }
     }
 
-    // ★登録機能の修正：ボタンの状態反映とエラー回避
     async function toggleSub() {
         if (!user) return alert("ログインしてください");
-        if (!authorId) return;
         if (user.uid === authorId) return alert("自分は登録できません");
-        
         const subRef = doc(db, "users", user.uid, "subscriptions", authorId);
+        const authorRef = doc(db, "users", authorId);
         const s = await getDoc(subRef);
-        
         if (s.exists()) { 
             await deleteDoc(subRef); 
-            alert("登録を解除しました"); 
+            await updateDoc(authorRef, { subCount: increment(-1) });
         } else { 
             await setDoc(subRef, { at: serverTimestamp() }); 
-            alert("チャンネル登録しました"); 
+            await updateDoc(authorRef, { subCount: increment(1) });
         }
     }
 
@@ -175,29 +192,28 @@
         const input = document.getElementById('commentInput');
         if (!input.value || !user) return alert("ログインしてください");
         const uSnap = await getDoc(doc(db, "users", user.uid));
-        const ud = uSnap.data();
         await addDoc(collection(db, "comments"), {
             videoId: vId, userId: user.uid, text: input.value,
-            userName: ud.name, userIcon: ud.icon, createdAt: serverTimestamp()
+            userName: uSnap.data().name, userIcon: uSnap.data().icon, createdAt: serverTimestamp()
         });
         input.value = "";
     }
 
     function loadComments() {
-        const q = query(collection(db, "comments"), where("videoId", "==", vId), orderBy("createdAt", "desc"));
+        // 並び替えエラーを回避するため orderBy を一旦除去
+        const q = query(collection(db, "comments"), where("videoId", "==", vId));
         onSnapshot(q, snap => {
             const list = document.getElementById('commentList'); list.innerHTML = "";
             snap.forEach(cDoc => {
                 const c = cDoc.data();
                 const div = document.createElement('div'); div.className = "comment-item";
-                div.innerHTML = `<img src="${c.userIcon}" class="c-icon"><div><b>${c.userName}</b><div>${c.text}</div></div>
-                ${isAdmin && user.uid === ADMIN_ID ? `<button onclick="deleteDoc(doc(db,'comments','${cDoc.id}'))" style="color:red;border:none;background:none;cursor:pointer;">削除</button>` : ''}`;
+                div.innerHTML = `<img src="${c.userIcon}" class="c-icon"><div class="c-body"><div class="c-name">${c.userName}</div><div>${c.text}</div></div>`;
                 list.appendChild(div);
             });
         });
     }
 
-    window.toChannel = () => { if(authorId) location.href = `channel.html?uid=${authorId}`; };
+    window.toChannel = () => location.href = `channel.html?uid=${authorId}`;
 </script>
 </body>
 </html>
