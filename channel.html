@@ -5,16 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MyTube - チャンネル</title>
     <style>
-        body { font-family: sans-serif; background: #f9f9f9; margin: 0; }
-        header { display: flex; align-items: center; padding: 10px 20px; background: white; border-bottom: 1px solid #ddd; }
-        .logo { color: red; font-size: 24px; font-weight: bold; cursor: pointer; text-decoration: none; }
-        .channel-header { padding: 30px 20px; display: flex; align-items: center; gap: 20px; background: white; border-bottom: 1px solid #eee; }
-        .c-icon-l { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; }
-        #videoGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 15px; padding: 20px; }
-        .v-card { cursor: pointer; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: 0.2s; }
-        .v-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
-        .v-thumb { width: 100%; aspect-ratio: 16/9; object-fit: cover; background: #000; }
-        .v-title { font-weight: bold; font-size: 14px; padding: 10px; }
+        :root { --yt-bg: #0f0f0f; --yt-text: #ffffff; --yt-gray: #aaaaaa; }
+        body { font-family: sans-serif; background: var(--yt-bg); color: var(--yt-text); margin: 0; }
+        header { padding: 10px 20px; background: var(--yt-bg); border-bottom: 1px solid #333; }
+        .logo { color: red; font-size: 24px; font-weight: bold; text-decoration: none; }
+        .channel-header { padding: 40px 20px; max-width: 1200px; margin: 0 auto; display: flex; align-items: center; gap: 24px; }
+        .c-icon-l { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; }
+        #videoGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; padding: 20px; max-width: 1200px; margin: 0 auto; }
+        .v-card { cursor: pointer; }
+        .v-thumb { width: 100%; aspect-ratio: 16/9; border-radius: 12px; object-fit: cover; background: #222; }
+        .v-title { font-weight: bold; font-size: 14px; margin-top: 10px; line-height: 1.4; }
     </style>
 </head>
 <body>
@@ -22,8 +22,8 @@
 <div class="channel-header">
     <img src="" class="c-icon-l" id="hIcon">
     <div>
-        <h2 id="hName" style="margin:0;">読み込み中...</h2>
-        <div id="hSubs" style="color:#606060; font-size:14px; margin-top:5px;">登録者 0人</div>
+        <h1 id="hName" style="margin:0; font-size:32px;">読み込み中...</h1>
+        <div id="hSubs" style="color:var(--yt-gray); margin-top:8px;">登録者 0人</div>
     </div>
 </div>
 <div id="videoGrid"></div>
@@ -46,42 +46,26 @@
     const uid = new URLSearchParams(window.location.search).get('uid');
 
     if (uid) {
-        // ユーザー情報の読み込み
         onSnapshot(doc(db, "users", uid), snap => {
             if(snap.exists()){
                 const d = snap.data();
-                document.getElementById('hName').innerText = d.name || "ユーザー";
+                document.getElementById('hName').innerText = d.name;
                 document.getElementById('hIcon').src = d.icon || "";
                 document.getElementById('hSubs').innerText = `登録者 ${(d.subCount || 0).toLocaleString()}人`;
             }
         });
 
-        // 動画一覧の読み込み (もっともシンプルなクエリ)
-        const vQuery = query(collection(db, "videos"), where("userId", "==", uid));
-        onSnapshot(vQuery, snap => {
+        onSnapshot(query(collection(db, "videos"), where("userId", "==", uid)), snap => {
             const grid = document.getElementById('videoGrid'); 
             grid.innerHTML = "";
-            if(snap.empty) {
-                grid.innerHTML = "<div style='padding:20px; color:#606060;'>まだ投稿された動画はありません。</div>";
-                return;
-            }
             snap.forEach(vDoc => {
                 const vd = vDoc.data();
-                const div = document.createElement('div'); 
-                div.className = "v-card";
+                const div = document.createElement('div'); div.className = "v-card";
                 div.onclick = () => location.href = `watch.html?id=${vDoc.id}`;
-                div.innerHTML = `
-                    <img src="${vd.thumbnail || 'https://via.placeholder.com/240x135?text=No+Image'}" class="v-thumb">
-                    <div class="v-title">${vd.title || "無題"}</div>
-                `;
+                div.innerHTML = `<img src="${vd.thumbnail || ''}" class="v-thumb"><div class="v-title">${vd.title}</div>`;
                 grid.appendChild(div);
             });
-        }, error => {
-            console.error("動画読み込みエラー:", error);
-            document.getElementById('videoGrid').innerHTML = "動画の読み込み中にエラーが発生しました。";
         });
-    } else {
-        location.href = "index.html";
     }
 </script>
 </body>
