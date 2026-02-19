@@ -1,99 +1,183 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>動画をアップロード</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyTube - 動画をアップロード</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; background: #f0f0f0; }
-        .upload-box { background: white; padding: 30px; border-radius: 10px; max-width: 500px; margin: auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        input, button { width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; border: 1px solid #ddd; box-sizing: border-box; }
-        button { background: #ff0000; color: white; border: none; cursor: pointer; font-weight: bold; }
-        #status { color: #666; text-align: center; margin-top: 10px; }
+        :root {
+            --primary-color: #ff0000;
+            --bg-color: #f9f9f9;
+        }
+        body {
+            font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+        h2 { color: #0f0f0f; margin-bottom: 25px; font-size: 24px; }
+        .input-group { margin-bottom: 20px; text-align: left; }
+        label { display: block; margin-bottom: 8px; font-weight: bold; color: #606060; font-size: 14px; }
+        input[type="text"], input[type="file"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin-top: 10px;
+        }
+        button:hover { background-color: #cc0000; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        #status {
+            margin-top: 20px;
+            font-size: 14px;
+            color: #606060;
+            line-height: 1.6;
+        }
+        .progress-container {
+            width: 100%;
+            background-color: #e0e0e0;
+            border-radius: 10px;
+            margin-top: 15px;
+            display: none;
+        }
+        #progressBar {
+            width: 0%;
+            height: 10px;
+            background-color: var(--primary-color);
+            border-radius: 10px;
+            transition: width 0.3s;
+        }
     </style>
 </head>
 <body>
 
-<div class="upload-box">
+<div class="container">
     <h2>動画を投稿する</h2>
-    <input type="text" id="videoTitle" placeholder="動画のタイトルを入力">
-    <input type="file" id="videoFile" accept="video/*">
-    <button onclick="uploadVideo()">アップロード開始！</button>
+    
+    <div class="input-group">
+        <label>タイトル</label>
+        <input type="text" id="videoTitle" placeholder="動画のタイトルを入力...">
+    </div>
+
+    <div class="input-group">
+        <label>動画ファイル</label>
+        <input type="file" id="videoFile" accept="video/*">
+    </div>
+
+    <button id="uploadBtn" onclick="uploadVideo()">アップロード開始</button>
+
+    <div class="progress-container" id="progressContainer">
+        <div id="progressBar"></div>
+    </div>
     <div id="status"></div>
 </div>
-    <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-  import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-  // --- あなたのFirebase設定 ---
-  const firebaseConfig = {
-    apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o",
-    authDomain: "mytube-f4544.firebaseapp.com",
-    projectId: "mytube-f4544",
-    storageBucket: "mytube-f4544.firebasestorage.app",
-    messagingSenderId: "655444283107",
-    appId: "1:655444283107:web:04f9173faf2d951790ffd6"
-  };
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
+    const firebaseConfig = {
+        apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o",
+        authDomain: "mytube-f4544.firebaseapp.com",
+        projectId: "mytube-f4544",
+        storageBucket: "mytube-f4544.firebasestorage.app",
+        messagingSenderId: "655444283107",
+        appId: "1:655444283107:web:04f9173faf2d951790ffd6"
+    };
 
-  // --- あなたのCloudinary設定 ---
-  const cloudName = "du5blunb0"; 
-  const uploadPreset = "mytube_preset";
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
 
-  window.uploadVideo = async function() {
-    const file = document.getElementById('videoFile').files[0];
-    const title = document.getElementById('videoTitle').value;
-    const status = document.getElementById('status');
+    window.uploadVideo = async function() {
+        const file = document.getElementById('videoFile').files[0];
+        const title = document.getElementById('videoTitle').value;
+        const status = document.getElementById('status');
+        const btn = document.getElementById('uploadBtn');
+        const pBar = document.getElementById('progressBar');
+        const pContainer = document.getElementById('progressContainer');
 
-    if (!file || !title) return alert("タイトルと動画を選んでね！");
+        if (!file || !title) return alert("タイトルと動画を選んでください！");
 
-    status.innerText = "アップロード中... (1080p対応モード)";
+        btn.disabled = true;
+        pContainer.style.display = 'block';
+        status.innerText = "準備中...";
 
-    // 大きな動画を分割して送る設定
-    const chunkSize = 20 * 1024 * 1024; // 20MBずつ
-    const totalChunks = Math.ceil(file.size / chunkSize);
-    const uniqueUploadId = 'mytube_' + Date.now();
-    let remoteURL = "";
+        const chunkSize = 20 * 1024 * 1024;
+        const totalChunks = Math.ceil(file.size / chunkSize);
+        const uniqueUploadId = 'mytube_' + Date.now();
+        let remoteURL = "";
 
-    try {
-      for (let i = 0; i < totalChunks; i++) {
-        const start = i * chunkSize;
-        const end = Math.min(file.size, start + chunkSize);
-        const chunk = file.slice(start, end);
+        try {
+            for (let i = 0; i < totalChunks; i++) {
+                const start = i * chunkSize;
+                const end = Math.min(file.size, start + chunkSize);
+                const chunk = file.slice(start, end);
 
-        const formData = new FormData();
-        formData.append("file", chunk);
-        formData.append("upload_preset", uploadPreset);
-        const contentRange = `bytes ${start}-${end - 1}/${file.size}`;
+                const formData = new FormData();
+                formData.append("file", chunk);
+                formData.append("upload_preset", "mytube_preset");
+                
+                const contentRange = `bytes ${start}-${end - 1}/${file.size}`;
 
-        const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/video/upload`, {
-          method: "POST",
-          body: formData,
-          headers: { "X-Unique-Upload-Id": uniqueUploadId, "Content-Range": contentRange }
-        });
+                const response = await fetch("https://api.cloudinary.com/v1_1/du5blunb0/video/upload", {
+                    method: "POST",
+                    body: formData,
+                    headers: {
+                        "X-Unique-Upload-Id": uniqueUploadId,
+                        "Content-Range": contentRange
+                    }
+                });
 
-        const result = await response.json();
-        const progress = Math.round(((i + 1) / totalChunks) * 100);
-        status.innerText = `アップロード中: ${progress}%`;
+                if (!response.ok) throw new Error("アップロードに失敗しました");
 
-        if (i === totalChunks - 1) remoteURL = result.secure_url;
-      }
+                const result = await response.json();
+                const progress = Math.round(((i + 1) / totalChunks) * 100);
+                pBar.style.width = progress + "%";
+                status.innerText = `アップロード中: ${progress}%`;
 
-      if (remoteURL) {
-        // ここでFirestore（台帳）にデータを追加！
-        await addDoc(collection(db, "videos"), {
-          title: title,
-          url: remoteURL,
-          createdAt: serverTimestamp()
-        });
-        status.innerText = "公開完了！Firebaseの台帳にも記録されました！";
-      }
-    } catch (error) {
-      status.innerText = "エラー: " + error.message;
-      console.error(error);
-    }
-  };
+                if (i === totalChunks - 1) remoteURL = result.secure_url;
+            }
+
+            if (remoteURL) {
+                await addDoc(collection(db, "videos"), {
+                    title: title,
+                    url: remoteURL,
+                    createdAt: serverTimestamp()
+                });
+                status.innerHTML = "✅ <b>公開完了！</b><br>Firebaseの台帳に記録されました。";
+            }
+        } catch (error) {
+            status.innerText = "❌ エラー: " + error.message;
+            btn.disabled = false;
+        }
+    };
 </script>
 
-
+</body>
+</html>
