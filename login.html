@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>MyTube - ログイン</title>
+    <style>body{font-family:sans-serif; display:flex; justify-content:center; align-items:center; height:100vh; margin:0; background:#fff;}</style>
+</head>
+<body>
+    <button onclick="login()" style="padding:10px 20px; font-weight:bold; cursor:pointer;">Googleでログイン</button>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const firebaseConfig = { /* 上記と同じConfigをここに貼る */ };
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    window.login = () => {
+        const provider = new GoogleAuthProvider();
+        signInWithPopup(auth, provider).then(async (result) => {
+            const user = result.user;
+            const uRef = doc(db, "users", user.uid);
+            const uSnap = await getDoc(uRef);
+            if (!uSnap.exists()) {
+                await setDoc(uRef, { name: user.displayName, icon: user.photoURL, subCount: 0 });
+            }
+            location.href = 'index.html';
+        }).catch(err => alert("失敗: " + err.message));
+    };
+</script>
+</body>
+</html>
