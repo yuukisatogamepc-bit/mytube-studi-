@@ -10,9 +10,8 @@
         video { width: 100%; background: #000; border-radius: 12px; aspect-ratio: 16/9; }
         h2 { margin: 15px 0 5px 0; }
         
-        /* 投稿者・チャンネル情報エリア */
         .channel-info { display: flex; align-items: center; gap: 12px; margin: 15px 0; padding-bottom: 15px; border-bottom: 1px solid #ddd; }
-        .channel-icon { width: 40px; height: 40px; border-radius: 50%; cursor: pointer; background: #eee; }
+        .channel-icon { width: 40px; height: 40px; border-radius: 50%; cursor: pointer; background: #eee; object-fit: cover; }
         .channel-details { flex-grow: 1; }
         .author-name { font-weight: bold; cursor: pointer; display: block; }
         .sub-btn { background: #0f0f0f; color: white; border-radius: 20px; padding: 8px 18px; border: none; font-weight: bold; cursor: pointer; }
@@ -20,7 +19,7 @@
 
         .auth-section { text-align: right; margin-bottom: 10px; }
         .user-profile { display: flex; align-items: center; justify-content: flex-end; gap: 10px; font-size: 14px; }
-        .user-icon-small { width: 24px; height: 24px; border-radius: 50%; }
+        .user-icon-small { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
 
         .comment-section { background: white; padding: 20px; border-radius: 12px; margin-top: 20px; }
         .input-area { margin-bottom: 20px; padding: 15px; border: 1px solid #eee; border-radius: 8px; }
@@ -92,13 +91,20 @@
     window.login = () => signInWithPopup(auth, provider);
     window.logout = () => signOut(auth);
 
-    onAuthStateChanged(auth, (user) => {
+    onAuthStateChanged(auth, async (user) => {
         currentUser = user;
         const authSection = document.getElementById('authSection');
         const inputArea = document.getElementById('inputArea');
         const loginMsg = document.getElementById('loginMsg');
 
         if (user) {
+            // ログイン時にユーザー情報を保存/更新
+            await setDoc(doc(db, "users", user.uid), {
+                name: user.displayName,
+                icon: user.photoURL,
+                uid: user.uid
+            }, { merge: true });
+
             authSection.innerHTML = `
                 <div class="user-profile">
                     <img src="${user.photoURL}" class="user-icon-small">
@@ -123,17 +129,28 @@
             document.getElementById('player').src = data.url;
             document.getElementById('videoTitle').innerText = data.title;
             
-            // 投稿者情報
+            // 重要：動画データに情報がなくても、userIdから最新のプロフィールを検索する
             const authorName = document.getElementById('authorName');
             const authorIcon = document.getElementById('authorIcon');
-            authorName.innerText = data.userName || "不明";
-            authorIcon.src = data.userIcon || "";
+            
+            if (data.userId) {
+                const userDoc = await getDoc(doc(db, "users", data.userId));
+                if (userDoc.exists()) {
+                    const userData = userDoc.data();
+                    authorName.innerText = userData.name;
+                    authorIcon.src = userData.icon;
+                } else {
+                    authorName.innerText = data.userName || "不明なユーザー";
+                    authorIcon.src = data.userIcon || "";
+                }
+                setupSubscribe(data.userId);
+            } else {
+                authorName.innerText = "不明なユーザー";
+            }
 
             const goToChannel = () => location.href = `channel.html?uid=${data.userId}`;
             authorName.onclick = goToChannel;
             authorIcon.onclick = goToChannel;
-
-            if (data.userId) setupSubscribe(data.userId);
         }
     }
 
@@ -177,10 +194,16 @@
     window.sendComment = async function() {
         const input = document.getElementById('commentInput');
         if (!input.value || !currentUser) return;
+
+        // 最新の自分のプロフィールを取得して投稿
+        const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+        const userData = userDoc.data();
+
         await addDoc(collection(db, "comments"), {
             videoId: videoId,
-            userName: currentUser.displayName,
-            userIcon: currentUser.photoURL,
+            userName: userData.name,
+            userIcon: userData.icon,
+            userId: currentUser.uid,
             text: input.value,
             parentId: currentReplyId || null,
             createdAt: serverTimestamp()
