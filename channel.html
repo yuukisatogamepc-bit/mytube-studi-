@@ -5,39 +5,53 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>チャンネル - MyTube</title>
     <style>
-        body { font-family: sans-serif; margin: 0; background: #f9f9f9; }
-        header { background: white; padding: 10px 20px; display: flex; align-items: center; border-bottom: 1px solid #ddd; }
-        .header-banner { height: 150px; background: linear-gradient(to right, #ff0000, #ff4d4d); }
-        .profile-section { max-width: 900px; margin: -50px auto 20px; padding: 0 20px; display: flex; align-items: flex-end; gap: 20px; }
-        .profile-icon { width: 120px; height: 120px; border-radius: 50%; border: 4px solid white; background: #eee; object-fit: cover; }
-        .channel-name { font-size: 24px; font-weight: bold; margin: 0 0 10px 0; }
-        hr { border: 0; border-top: 1px solid #ddd; margin: 20px 0; }
-        .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; padding: 20px; max-width: 1200px; margin: 0 auto; }
-        .video-card { background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.1); cursor: pointer; }
-        .video-card video { width: 100%; aspect-ratio: 16/9; background: #000; object-fit: cover; }
-        .video-card h3 { font-size: 16px; padding: 10px; margin: 0; }
+        body { font-family: sans-serif; margin: 0; background: #f9f9f9; color: #0f0f0f; }
+        header { background: white; padding: 10px 20px; display: flex; align-items: center; border-bottom: 1px solid #ddd; position: sticky; top: 0; z-index: 100; }
+        .header-banner { height: 160px; background: linear-gradient(135deg, #ff0000 0%, #a50000 100%); }
+        .profile-section { max-width: 1000px; margin: -60px auto 20px; padding: 0 20px; display: flex; align-items: flex-end; gap: 24px; }
+        .profile-icon { width: 128px; height: 128px; border-radius: 50%; border: 4px solid white; background: #fff; object-fit: cover; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .channel-info-text { margin-bottom: 10px; }
+        .channel-name { font-size: 28px; font-weight: bold; margin: 0; }
+        .stats { color: #606060; font-size: 14px; margin-top: 4px; }
+        
+        main { max-width: 1000px; margin: 0 auto; padding: 20px; }
+        .tab-menu { border-bottom: 1px solid #ddd; margin-bottom: 20px; font-weight: bold; color: #606060; padding-bottom: 10px; }
+        
+        .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+        .video-card { background: none; border-radius: 12px; overflow: hidden; cursor: pointer; transition: transform 0.2s; }
+        .video-card:hover { transform: translateY(-4px); }
+        .video-card video { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 12px; object-fit: cover; }
+        .video-card h3 { font-size: 14px; margin: 8px 0; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        
+        #statusMsg { text-align: center; padding: 50px; color: #606060; }
+        .error-box { background: #fff1f1; border: 1px solid #ffcccc; color: #cc0000; padding: 15px; border-radius: 8px; margin: 20px; font-size: 14px; }
     </style>
 </head>
 <body>
     <header>
-        <h2 style="color:red; cursor:pointer; margin:0;" onclick="location.href='index.html'">MyTube</h2>
+        <h2 style="color:red; cursor:pointer; margin:0; font-style: italic; letter-spacing: -1px;" onclick="location.href='index.html'">MyTube</h2>
     </header>
+
     <div class="header-banner"></div>
+    
     <div class="profile-section">
-        <img id="userIcon" class="profile-icon" src="">
-        <div>
+        <img id="userIcon" class="profile-icon" src="https://via.placeholder.com/128">
+        <div class="channel-info-text">
             <h1 id="userName" class="channel-name">読み込み中...</h1>
-            <p id="subCount" style="color:#666;">チャンネル登録者 0人</p>
+            <div id="subCount" class="stats">チャンネル登録者数 0人 ・ 動画 0本</div>
         </div>
     </div>
-    <hr>
-    <div class="video-grid" id="channelVideos">動画を読み込み中...</div>
+
+    <main>
+        <div class="tab-menu">動画</div>
+        <div id="statusMsg">読み込み中...</div>
+        <div class="video-grid" id="channelVideos"></div>
+    </main>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, doc, getDoc, collection, query, where, getDocs, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // ★ここにあなたのFirebase設定を貼り付けてください★
         const firebaseConfig = {
             apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o",
             authDomain: "mytube-f4544.firebaseapp.com",
@@ -55,53 +69,63 @@
 
         async function loadChannel() {
             if (!targetUid) {
-                document.getElementById('userName').innerText = "ユーザーが見つかりません";
+                document.getElementById('statusMsg').innerHTML = "<div class='error-box'>ユーザーIDが指定されていません。ホームに戻ってください。</div>";
                 return;
             }
 
             try {
-                // 1. ユーザー情報を取得
+                // 1. プロフィール取得
                 const userDoc = await getDoc(doc(db, "users", targetUid));
                 if (userDoc.exists()) {
                     const userData = userDoc.data();
-                    document.getElementById('userName').innerText = userData.name;
-                    document.getElementById('userIcon').src = userData.icon;
-                } else {
-                    document.getElementById('userName').innerText = "不明なクリエイター";
+                    document.getElementById('userName').innerText = userData.name || "名前なし";
+                    document.getElementById('userIcon').src = userData.icon || "https://via.placeholder.com/128";
                 }
 
-                // 2. その人の動画を取得
+                // 2. 動画取得
+                // インデックスエラーを避けるため、最初は orderBy を使わずに取得し、JavaScript側で並び替える
                 const q = query(
                     collection(db, "videos"), 
-                    where("userId", "==", targetUid),
-                    orderBy("createdAt", "desc")
+                    where("userId", "==", targetUid)
                 );
+                
                 const snap = await getDocs(q);
                 const list = document.getElementById('channelVideos');
-                list.innerHTML = "";
+                const status = document.getElementById('statusMsg');
                 
                 if (snap.empty) {
-                    list.innerHTML = "まだ動画が投稿されていません。";
+                    status.innerText = "まだ動画が投稿されていません。";
                     return;
                 }
+
+                status.style.display = "none";
                 
-                snap.forEach(vDoc => {
-                    const data = vDoc.data();
+                // データを配列に入れて日付順にソート（インデックスエラー対策）
+                const videoData = [];
+                snap.forEach(vDoc => videoData.push({id: vDoc.id, ...vDoc.data()}));
+                videoData.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+
+                document.getElementById('subCount').innerText = `動画 ${videoData.length} 本`;
+
+                videoData.forEach(data => {
                     const div = document.createElement('div');
                     div.className = "video-card";
-                    div.onclick = () => location.href = `watch.html?id=${vDoc.id}`;
+                    div.onclick = () => location.href = `watch.html?id=${data.id}`;
                     div.innerHTML = `
-                        <video src="${data.url}"></video>
-                        <h3>${data.title}</h3>
+                        <video src="${data.url}" preload="metadata"></video>
+                        <h3>${data.title || '無題の動画'}</h3>
                     `;
                     list.appendChild(div);
                 });
 
-                // 3. 登録者数を計算（簡易版）
-                // ※本来はsubscriptionsコレクションから集計しますが、まずは表示のみ
             } catch (error) {
-                console.error("読み込みエラー:", error);
-                document.getElementById('channelVideos').innerText = "エラーが発生しました。";
+                console.error("Error details:", error);
+                document.getElementById('statusMsg').innerHTML = `
+                    <div class='error-box'>
+                        読み込みに失敗しました。<br>
+                        <small>${error.message}</small>
+                    </div>
+                `;
             }
         }
         
