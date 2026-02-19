@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MyTube - チャンネル</title>
     <style>
+        /* 元のシンプルなスタイルを復元 */
         :root { --primary-color: #ff0000; --bg-color: #f9f9f9; }
         body { font-family: sans-serif; background: var(--bg-color); margin: 0; padding: 0; }
         header { padding: 20px; display: flex; align-items: center; gap: 20px; background: white; border-bottom: 1px solid #ddd; }
@@ -26,14 +27,14 @@
         <h2 id="channelName">読み込み中...</h2>
         <div id="subCount" class="sub-text">登録者 0人</div>
     </div>
-    <button onclick="location.href='index.html'" style="margin-left:auto; padding:10px;">ホームへ</button>
+    <button onclick="location.href='index.html'" style="margin-left:auto; padding:8px 15px; border-radius:20px; border:1px solid #ccc; background:#fff; cursor:pointer;">ホーム</button>
 </header>
 
-<div id="videoList">動画を読み込み中...</div>
+<div id="videoList"></div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, collection, query, where, getDocs, onSnapshot, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, doc, collection, query, where, getDocs, onSnapshot, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o",
@@ -54,33 +55,24 @@
         loadChannelInfo();
         loadChannelVideos();
     } else {
-        alert("ユーザーIDが見つかりません");
         location.href = 'index.html';
     }
 
-    // チャンネル情報の読み込み
     async function loadChannelInfo() {
-        // ユーザー情報をリアルタイム監視 (onSnapshot)
+        // リアルタイム監視で管理者が数値を書き換えたら即反映させる
         onSnapshot(doc(db, "users", targetUid), async (uDoc) => {
             if (uDoc.exists()) {
                 const data = uDoc.data();
-                document.getElementById('channelName').innerText = data.name || "名称未設定";
-                document.getElementById('channelIcon').src = data.icon || "https://via.placeholder.com/80";
+                document.getElementById('channelName').innerText = data.name || "ユーザー";
+                document.getElementById('channelIcon').src = data.icon || "";
 
-                // ★ここが完全版のポイント：管理者が書き換えた subCount があればそれを優先表示
-                if (data.subCount !== undefined) {
-                    document.getElementById('subCount').innerText = `登録者 ${Number(data.subCount).toLocaleString()}人`;
-                } else {
-                    // データがない場合は、実際の登録者ドキュメントを数える（初期用）
-                    const subQuery = query(collection(db, "users", targetUid, "subscriptions")); 
-                    const subSnapshot = await getDocs(subQuery);
-                    document.getElementById('subCount').innerText = `登録者 ${subSnapshot.size.toLocaleString()}人`;
-                }
+                // 管理者が設定した subCount があればそれを優先、なければ 0
+                const count = data.subCount !== undefined ? data.subCount : 0;
+                document.getElementById('subCount').innerText = `登録者 ${count.toLocaleString()}人`;
             }
         });
     }
 
-    // そのユーザーの動画一覧を読み込み
     function loadChannelVideos() {
         const q = query(collection(db, "videos"), where("userId", "==", targetUid), orderBy("createdAt", "desc"));
         onSnapshot(q, (snapshot) => {
