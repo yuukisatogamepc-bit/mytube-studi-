@@ -8,45 +8,26 @@
         :root { --primary-color: #ff0000; --bg-color: #f9f9f9; }
         body { font-family: sans-serif; background: var(--bg-color); margin: 0; padding: 20px; }
         header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
-        h1 { color: var(--primary-color); margin: 0; }
+        h1 { color: var(--primary-color); margin: 0; cursor: pointer; }
         .upload-link { text-decoration: none; background: var(--primary-color); color: white; padding: 10px 20px; border-radius: 20px; font-weight: bold; }
-        
-        /* 動画が並ぶグリッド */
-        #videoList {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 20px;
-        }
-        .video-card {
-            background: white;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            transition: transform 0.2s;
-        }
-        .video-card:hover { transform: translateY(-5px); }
-        video { width: 100%; aspect-ratio: 16 / 9; background: black; display: block; }
+        #videoList { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+        .video-card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: pointer; }
+        video { width: 100%; aspect-ratio: 16 / 9; pointer-events: none; background: #000; }
         .video-info { padding: 12px; }
-        .video-title { font-weight: bold; font-size: 16px; color: #0f0f0f; margin-bottom: 5px; }
-        .video-date { font-size: 12px; color: #606060; }
+        .video-title { font-weight: bold; font-size: 16px; margin-bottom: 5px; }
     </style>
 </head>
 <body>
-
 <header>
-    <h1>MyTube</h1>
+    <h1 onclick="location.href='index.html'">MyTube</h1>
     <a href="upload.html" class="upload-link">＋ 投稿する</a>
 </header>
-
-<div id="videoList">
-    <p id="loading">動画を読み込み中...</p>
-</div>
+<div id="videoList"><p id="loading">動画を読み込み中...</p></div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, query, orderBy, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    // Firebase設定 (upload.htmlと同じもの)
     const firebaseConfig = {
         apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o",
         authDomain: "mytube-f4544.firebaseapp.com",
@@ -61,38 +42,24 @@
 
     async function loadVideos() {
         const videoList = document.getElementById('videoList');
-        const loading = document.getElementById('loading');
-
         try {
-            // 新しい順に動画を取得
             const q = query(collection(db, "videos"), orderBy("createdAt", "desc"));
             const querySnapshot = await getDocs(q);
-            
-            loading.style.display = 'none';
-
+            document.getElementById('loading').style.display = 'none';
             querySnapshot.forEach((doc) => {
                 const data = doc.data();
-                const date = data.createdAt ? data.createdAt.toDate().toLocaleDateString() : "最近";
-                
                 const card = document.createElement('div');
                 card.className = 'video-card';
+                card.onclick = () => location.href = `watch.html?id=${doc.id}`;
                 card.innerHTML = `
-                    <video src="${data.url}" controls preload="metadata"></video>
-                    <div class="video-info">
-                        <div class="video-title">${data.title}</div>
-                        <div class="video-date">${date} に投稿</div>
-                    </div>
+                    <video src="${data.url}"></video>
+                    <div class="video-info"><div class="video-title">${data.title}</div></div>
                 `;
                 videoList.appendChild(card);
             });
-        } catch (error) {
-            console.error("読み込みエラー:", error);
-            loading.innerText = "動画の読み込みに失敗しました。";
-        }
+        } catch (e) { console.error(e); }
     }
-
     loadVideos();
 </script>
-
 </body>
 </html>
