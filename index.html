@@ -70,40 +70,52 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // スマホ対応版サムネイル自動生成
+    // ★修正版：サムネイル生成の確実性を向上
     async function generateThumb(url, imgElement) {
         const video = document.createElement('video');
         video.src = url;
-        video.preload = "metadata";
+        video.preload = "auto"; // メタデータだけでなくデータを読み込む
         video.muted = true;
         video.playsInline = true;
-        video.crossOrigin = "anonymous";
+        video.crossOrigin = "anonymous"; 
         
-        video.onloadedmetadata = () => {
-            video.currentTime = 1; 
-        };
+        // スマホ対策：読み込みが完了してからシークする
+        video.addEventListener('loadeddata', () => {
+            video.currentTime = 1.0; 
+        });
 
-        video.onseeked = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = 480; canvas.height = 270;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            imgElement.src = canvas.toDataURL('image/jpeg', 0.8);
-            imgElement.style.opacity = 1;
-            video.remove();
-        };
+        video.addEventListener('seeked', () => {
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = 480; 
+                canvas.height = 270;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                // 描画された内容が真っ黒（ピクセルデータが空）でないかチェック
+                const pixelData = ctx.getImageData(100, 100, 1, 1).data;
+                if (pixelData[3] === 0) throw new Error("Canvas empty");
 
+                imgElement.src = canvas.toDataURL('image/jpeg', 0.8);
+                imgElement.style.opacity = 1;
+                video.remove();
+            } catch (e) {
+                // 失敗した場合は少し遅れて再試行
+                setTimeout(() => { video.currentTime = 1.5; }, 500);
+            }
+        });
+
+        // タイムアウト
         setTimeout(() => {
             if (imgElement.style.opacity === "0") {
-                imgElement.src = "https://via.placeholder.com/480x270?text=MyTube";
+                imgElement.src = "https://via.placeholder.com/480x270?text=Video+Preview";
                 imgElement.style.opacity = 1;
             }
-        }, 6000);
+        }, 8000);
 
         video.load();
     }
 
-    // 動画一覧の取得
     onSnapshot(collection(db, "videos"), async snap => {
         const grid = document.getElementById('videoGrid');
         grid.innerHTML = "";
@@ -134,7 +146,6 @@
             `;
             grid.appendChild(card);
 
-            // 投稿者情報の取得
             const uSnap = await getDoc(doc(db, "users", vd.userId));
             if(uSnap.exists()){
                 const ud = uSnap.data();
@@ -142,9 +153,8 @@
                 document.getElementById(iconId).src = ud.icon || "";
             }
 
-            // サムネイル処理
             const img = document.getElementById(thumbId);
-            if (vd.thumbnail) {
+            if (vd.thumbnail && vd.thumbnail !== "") {
                 img.src = vd.thumbnail;
                 img.style.opacity = 1;
             } else {
