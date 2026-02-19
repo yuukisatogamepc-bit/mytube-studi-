@@ -19,7 +19,8 @@
     <input type="file" id="videoFile" accept="video/*">
     <button onclick="uploadVideo()">アップロード開始！</button>
     <div id="status"></div>
-</div><script type="module">
+</div>
+    <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
   import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
@@ -94,4 +95,5 @@
     }
   };
 </script>
+
 
