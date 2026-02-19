@@ -10,97 +10,95 @@
         .logo { color: red; font-size: 24px; font-weight: bold; cursor: pointer; text-decoration: none; }
         .main-container { max-width: 900px; margin: 20px auto; padding: 0 15px; }
         video { width: 100%; background: #000; border-radius: 12px; aspect-ratio: 16/9; }
-        
-        /* 管理者パネル */
-        #adminPanel { display: none; background: #222; color: gold; padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid gold; font-size: 13px; }
-        #adminPanel input { background: #333; color: #fff; border: 1px solid gold; padding: 4px; width: 60px; margin-right: 10px; }
-
+        #adminPanel { display: none; background: #222; color: gold; padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid gold; }
+        #adminPanel input { background: #333; color: #fff; border: 1px solid gold; padding: 4px; width: 65px; margin-right: 10px; }
         .video-info { margin-top: 15px; }
         .stats-bar { display: flex; align-items: center; gap: 15px; margin: 10px 0; color: #606060; font-size: 14px; }
-        .like-btn { background: #eee; border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.2s; }
-        .like-btn:hover { background: #e0e0e0; }
-
+        .like-btn { background: #eee; border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-weight: bold; }
         .channel-row { display: flex; align-items: center; gap: 12px; padding: 15px 0; border-top: 1px solid #eee; border-bottom: 1px solid #eee; margin-top: 15px; }
         .channel-icon { width: 40px; height: 40px; border-radius: 50%; cursor: pointer; object-fit: cover; }
         .sub-btn { background: #0f0f0f; color: white; border-radius: 20px; padding: 8px 18px; border: none; font-weight: bold; cursor: pointer; margin-left: auto; }
+        .comment-item { display: flex; gap: 10px; margin-top: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        .c-icon { width: 32px; height: 32px; border-radius: 50%; }
     </style>
 </head>
 <body>
-
-<header>
-    <a href="index.html" class="logo">MyTube</a>
-</header>
-
+<header><a href="index.html" class="logo">MyTube</a></header>
 <div class="main-container">
     <div id="adminPanel">
-        👑 管理モード: 
-        再生数<input type="number" id="admViews"> 
-        高評価<input type="number" id="admLikes"> 
-        登録者<input type="number" id="admSubs">
+        👑 管理: 再生<input type="number" id="admViews"> 評価<input type="number" id="admLikes"> 登録者<input type="number" id="admSubs">
         <button onclick="adminSave()" style="background:gold; border:none; padding:5px 10px; cursor:pointer; font-weight:bold;">保存</button>
     </div>
-
     <video id="player" controls autoplay></video>
-    
     <div class="video-info">
         <h2 id="vTitle" style="margin:10px 0;">読み込み中...</h2>
         <div class="stats-bar">
             <span>再生回数 <span id="vViews">0</span>回</span>
-            <button class="like-btn" onclick="handleLike()">👍 <span id="vLikes">0</span></button>
+            <button class="like-btn" id="likeBtn">👍 <span id="vLikes">0</span></button>
         </div>
     </div>
-
     <div class="channel-row">
         <img src="" class="channel-icon" id="cIcon" onclick="toChannel()">
         <div>
-            <div id="cName" style="font-weight:bold; cursor:pointer;" onclick="toChannel()">読み込み中...</div>
+            <div id="cName" style="font-weight:bold; cursor:pointer;" onclick="toChannel()">ユーザー</div>
             <div id="cSubs" style="font-size:12px; color:#606060;">登録者 0人</div>
         </div>
         <button class="sub-btn" id="subBtn">チャンネル登録</button>
+    </div>
+    <div style="margin-top:20px;">
+        <input type="text" id="commentInput" placeholder="コメントを入力..." style="width:80%; padding:8px;">
+        <button onclick="sendComment()">投稿</button>
+        <div id="commentList"></div>
     </div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where, orderBy, addDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-    const firebaseConfig = { /* あなたのConfig */ };
+    const firebaseConfig = {
+        apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o",
+        authDomain: "mytube-f4544.firebaseapp.com",
+        projectId: "mytube-f4544",
+        storageBucket: "mytube-f4544.firebasestorage.app",
+        messagingSenderId: "655444283107",
+        appId: "1:655444283107:web:04f9173faf2d951790ffd6"
+    };
+
     const ADMIN_ID = "tP5CqCTRO3f2QQ8jdoj0ftY8kZU2";
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const auth = getAuth(app);
-
     const vId = new URLSearchParams(window.location.search).get('id');
-    let user = null, authorId = "", isAdmin = false;
+    let user = null, authorId = "", isAdmin = false, cmd = "";
 
-    // 隠しコマンド
-    let cmd = "";
     window.addEventListener('keydown', e => {
         cmd = (cmd + e.key.toLowerCase()).slice(-9);
         if (cmd === "abbmytube") {
             isAdmin = !isAdmin;
             document.getElementById('adminPanel').style.display = isAdmin ? 'block' : 'none';
+            loadComments();
         }
     });
 
     onAuthStateChanged(auth, u => { 
-        user = u; 
-        loadVideo(); 
+        user = u; loadVideo(); loadComments();
         document.getElementById('subBtn').onclick = toggleSub;
+        document.getElementById('likeBtn').onclick = handleLike;
     });
 
     function loadVideo() {
+        if(!vId) return;
         onSnapshot(doc(db, "videos", vId), async snap => {
-            const d = snap.data();
-            authorId = d.userId;
+            if(!snap.exists()) return;
+            const d = snap.data(); authorId = d.userId;
             document.getElementById('player').src = d.url;
             document.getElementById('vTitle').innerText = d.title;
             document.getElementById('vViews').innerText = d.views || 0;
             document.getElementById('vLikes').innerText = d.likes || 0;
             document.getElementById('admViews').value = d.views || 0;
             document.getElementById('admLikes').value = d.likes || 0;
-
             const uSnap = await getDoc(doc(db, "users", d.userId));
             if (uSnap.exists()) {
                 const ud = uSnap.data();
@@ -133,11 +131,35 @@
             views: parseInt(document.getElementById('admViews').value),
             likes: parseInt(document.getElementById('admLikes').value)
         });
-        await setDoc(doc(db, "users", authorId), {
-            subCount: parseInt(document.getElementById('admSubs').value)
-        }, { merge: true });
+        await setDoc(doc(db, "users", authorId), { subCount: parseInt(document.getElementById('admSubs').value) }, { merge: true });
         alert("神権限で更新しました");
     };
+
+    window.sendComment = async () => {
+        const input = document.getElementById('commentInput');
+        if (!input.value || !user) return alert("ログインしてください");
+        const uSnap = await getDoc(doc(db, "users", user.uid));
+        const ud = uSnap.data();
+        await addDoc(collection(db, "comments"), {
+            videoId: vId, userId: user.uid, text: input.value,
+            userName: ud.name, userIcon: ud.icon, createdAt: serverTimestamp()
+        });
+        input.value = "";
+    };
+
+    function loadComments() {
+        const q = query(collection(db, "comments"), where("videoId", "==", vId), orderBy("createdAt", "desc"));
+        onSnapshot(q, snap => {
+            const list = document.getElementById('commentList'); list.innerHTML = "";
+            snap.forEach(cDoc => {
+                const c = cDoc.data();
+                const div = document.createElement('div'); div.className = "comment-item";
+                div.innerHTML = `<img src="${c.userIcon}" class="c-icon"><div><b>${c.userName}</b><div>${c.text}</div></div>
+                ${isAdmin && user.uid === ADMIN_ID ? `<button onclick="deleteDoc(doc(db,'comments','${cDoc.id}'))" style="color:red;border:none;background:none;cursor:pointer;">削除</button>` : ''}`;
+                list.appendChild(div);
+            });
+        });
+    }
 
     window.toChannel = () => location.href = `channel.html?uid=${authorId}`;
 </script>
