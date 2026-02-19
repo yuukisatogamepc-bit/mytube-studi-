@@ -1,76 +1,75 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <title>MyTube Studio - 10本連続アップロード対応</title>
-    <style>
-        body { font-family: sans-serif; background: #f9f9f9; display: flex; justify-content: center; padding: 50px; }
-        .upload-card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 400px; }
-        .status-badge { background: #eee; padding: 5px 10px; border-radius: 5px; font-size: 12px; margin-bottom: 10px; display: inline-block; }
-        input, textarea { width: 100%; margin-bottom: 15px; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 8px; }
-        .upload-btn { width: 100%; background: #065fd4; color: white; border: none; padding: 15px; border-radius: 8px; font-weight: bold; cursor: pointer; }
-        .link-text { display: block; text-align: center; margin-top: 15px; color: #065fd4; text-decoration: none; font-size: 14px; }
-    </style>
-</head>
-<body>
-    <div class="upload-card">
-        <div class="status-badge" id="video-count-badge">現在の投稿数: 0本</div>
-        <h2>動画を投稿する (10本以上対応)</h2>
-        <p style="font-size: 12px; color: #666;">※ sample-video(2)などを順番に選択してください</p>
-        
-        <input type="file" id="video-file" accept="video/*">
-        <input type="text" id="video-title" placeholder="動画のタイトル (例: 動画その2)">
-        <textarea id="video-desc" rows="3" placeholder="説明文を入力"></textarea>
-        
-        <button class="upload-btn" id="submit-btn">この動画を公開する</button>
-        <a href="index.html" class="link-text">視聴ページへ戻る</a>
-    </div>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    <script>
-        // 現在何本あるか表示を更新
-        function updateCount() {
-            const list = JSON.parse(localStorage.getItem('myVideos')) || [];
-            document.getElementById('video-count-badge').textContent = `現在の投稿数: ${list.length}本`;
-        }
-        updateCount();
+  // --- あなたのFirebase設定 ---
+  const firebaseConfig = {
+    apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o",
+    authDomain: "mytube-f4544.firebaseapp.com",
+    projectId: "mytube-f4544",
+    storageBucket: "mytube-f4544.firebasestorage.app",
+    messagingSenderId: "655444283107",
+    appId: "1:655444283107:web:04f9173faf2d951790ffd6"
+  };
 
-        document.getElementById('submit-btn').onclick = () => {
-            const fileInput = document.getElementById('video-file');
-            const file = fileInput.files[0];
-            const title = document.getElementById('video-title').value;
-            const desc = document.getElementById('video-desc').value;
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
 
-            if (!file || !title) return alert("動画とタイトルを入力してください");
+  // --- あなたのCloudinary設定 ---
+  const cloudName = "du5blunb0"; 
+  const uploadPreset = "mytube_preset";
 
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const videoItem = {
-                    id: Date.now(),
-                    data: e.target.result,
-                    title: title,
-                    desc: desc
-                };
+  window.uploadVideo = async function() {
+    const file = document.getElementById('videoFile').files[0];
+    const title = document.getElementById('videoTitle').value;
+    const status = document.getElementById('status');
 
-                const videoList = JSON.parse(localStorage.getItem('myVideos')) || [];
-                videoList.push(videoItem);
-                
-                // ブラウザの容量制限チェック（LocalStorageは約5〜10MBまで）
-                try {
-                    localStorage.setItem('myVideos', JSON.stringify(videoList));
-                    localStorage.setItem('currentVideoId', videoItem.id);
-                    alert("投稿成功！");
-                    
-                    // 入力欄をリセットして次の投稿をしやすくする
-                    fileInput.value = "";
-                    document.getElementById('video-title').value = "";
-                    document.getElementById('video-desc').value = "";
-                    updateCount();
-                } catch (e) {
-                    alert("エラー：動画が大きすぎるか、ブラウザの保存容量がいっぱいです。もっと短い動画（数秒）で試してください。");
-                }
-            };
-            reader.readAsDataURL(file);
-        };
-    </script>
-</body>
-</html>
+    if (!file || !title) return alert("タイトルと動画を選んでね！");
+
+    status.innerText = "アップロード中... (1080p対応モード)";
+
+    // 大きな動画を分割して送る設定
+    const chunkSize = 20 * 1024 * 1024; // 20MBずつ
+    const totalChunks = Math.ceil(file.size / chunkSize);
+    const uniqueUploadId = 'mytube_' + Date.now();
+    let remoteURL = "";
+
+    try {
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * chunkSize;
+        const end = Math.min(file.size, start + chunkSize);
+        const chunk = file.slice(start, end);
+
+        const formData = new FormData();
+        formData.append("file", chunk);
+        formData.append("upload_preset", uploadPreset);
+        const contentRange = `bytes ${start}-${end - 1}/${file.size}`;
+
+        const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/video/upload`, {
+          method: "POST",
+          body: formData,
+          headers: { "X-Unique-Upload-Id": uniqueUploadId, "Content-Range": contentRange }
+        });
+
+        const result = await response.json();
+        const progress = Math.round(((i + 1) / totalChunks) * 100);
+        status.innerText = `アップロード中: ${progress}%`;
+
+        if (i === totalChunks - 1) remoteURL = result.secure_url;
+      }
+
+      if (remoteURL) {
+        // ここでFirestore（台帳）にデータを追加！
+        await addDoc(collection(db, "videos"), {
+          title: title,
+          url: remoteURL,
+          createdAt: serverTimestamp()
+        });
+        status.innerText = "公開完了！Firebaseの台帳にも記録されました！";
+      }
+    } catch (error) {
+      status.innerText = "エラー: " + error.message;
+      console.error(error);
+    }
+  };
+</script>
