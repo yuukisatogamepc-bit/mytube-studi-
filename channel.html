@@ -2,33 +2,51 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>チャンネル - MyTube</title>
     <style>
         body { font-family: sans-serif; margin: 0; background: #f9f9f9; }
-        .header-banner { height: 150px; background: #ccc; }
+        header { background: white; padding: 10px 20px; display: flex; align-items: center; border-bottom: 1px solid #ddd; }
+        .header-banner { height: 150px; background: linear-gradient(to right, #ff0000, #ff4d4d); }
         .profile-section { max-width: 900px; margin: -50px auto 20px; padding: 0 20px; display: flex; align-items: flex-end; gap: 20px; }
-        .profile-icon { width: 120px; height: 120px; border-radius: 50%; border: 4px solid white; }
+        .profile-icon { width: 120px; height: 120px; border-radius: 50%; border: 4px solid white; background: #eee; object-fit: cover; }
+        .channel-name { font-size: 24px; font-weight: bold; margin: 0 0 10px 0; }
+        hr { border: 0; border-top: 1px solid #ddd; margin: 20px 0; }
         .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; padding: 20px; max-width: 1200px; margin: 0 auto; }
-        .video-card video { width: 100%; border-radius: 8px; }
+        .video-card { background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.1); cursor: pointer; }
+        .video-card video { width: 100%; aspect-ratio: 16/9; background: #000; object-fit: cover; }
+        .video-card h3 { font-size: 16px; padding: 10px; margin: 0; }
     </style>
 </head>
 <body>
+    <header>
+        <h2 style="color:red; cursor:pointer; margin:0;" onclick="location.href='index.html'">MyTube</h2>
+    </header>
     <div class="header-banner"></div>
     <div class="profile-section">
-        <img id="userIcon" class="profile-icon">
+        <img id="userIcon" class="profile-icon" src="">
         <div>
-            <h1 id="userName">読み込み中...</h1>
-            <p id="subCount">読み込み中...</p>
+            <h1 id="userName" class="channel-name">読み込み中...</h1>
+            <p id="subCount" style="color:#666;">チャンネル登録者 0人</p>
         </div>
     </div>
     <hr>
-    <div class="video-grid" id="channelVideos"></div>
+    <div class="video-grid" id="channelVideos">動画を読み込み中...</div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, collection, query, where, getDocs, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        const firebaseConfig = { /* あなたのConfig */ };
+        // ★ここにあなたのFirebase設定を貼り付けてください★
+        const firebaseConfig = {
+            apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o",
+            authDomain: "mytube-f4544.firebaseapp.com",
+            projectId: "mytube-f4544",
+            storageBucket: "mytube-f4544.firebasestorage.app",
+            messagingSenderId: "655444283107",
+            appId: "1:655444283107:web:04f9173faf2d951790ffd6"
+        };
+
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
@@ -36,25 +54,57 @@
         const targetUid = params.get('uid');
 
         async function loadChannel() {
-            // その人の動画を取得
-            const q = query(collection(db, "videos"), where("userId", "==", targetUid));
-            const snap = await getDocs(q);
-            const list = document.getElementById('channelVideos');
-            
-            if (snap.empty) { list.innerHTML = "まだ動画がありません。"; }
-            
-            snap.forEach(doc => {
-                const data = doc.data();
-                if (!document.getElementById('userName').innerText || document.getElementById('userName').innerText === "読み込み中...") {
-                    document.getElementById('userName').innerText = data.userName;
-                    document.getElementById('userIcon').src = data.userIcon;
+            if (!targetUid) {
+                document.getElementById('userName').innerText = "ユーザーが見つかりません";
+                return;
+            }
+
+            try {
+                // 1. ユーザー情報を取得
+                const userDoc = await getDoc(doc(db, "users", targetUid));
+                if (userDoc.exists()) {
+                    const userData = userDoc.data();
+                    document.getElementById('userName').innerText = userData.name;
+                    document.getElementById('userIcon').src = userData.icon;
+                } else {
+                    document.getElementById('userName').innerText = "不明なクリエイター";
                 }
-                const div = document.createElement('div');
-                div.className = "video-card";
-                div.innerHTML = `<video src="${data.url}" onclick="location.href='watch.html?id=${doc.id}'"></video><h3>${data.title}</h3>`;
-                list.appendChild(div);
-            });
+
+                // 2. その人の動画を取得
+                const q = query(
+                    collection(db, "videos"), 
+                    where("userId", "==", targetUid),
+                    orderBy("createdAt", "desc")
+                );
+                const snap = await getDocs(q);
+                const list = document.getElementById('channelVideos');
+                list.innerHTML = "";
+                
+                if (snap.empty) {
+                    list.innerHTML = "まだ動画が投稿されていません。";
+                    return;
+                }
+                
+                snap.forEach(vDoc => {
+                    const data = vDoc.data();
+                    const div = document.createElement('div');
+                    div.className = "video-card";
+                    div.onclick = () => location.href = `watch.html?id=${vDoc.id}`;
+                    div.innerHTML = `
+                        <video src="${data.url}"></video>
+                        <h3>${data.title}</h3>
+                    `;
+                    list.appendChild(div);
+                });
+
+                // 3. 登録者数を計算（簡易版）
+                // ※本来はsubscriptionsコレクションから集計しますが、まずは表示のみ
+            } catch (error) {
+                console.error("読み込みエラー:", error);
+                document.getElementById('channelVideos').innerText = "エラーが発生しました。";
+            }
         }
+        
         loadChannel();
     </script>
 </body>
