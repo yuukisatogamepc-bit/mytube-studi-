@@ -5,36 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MyTube - 再生</title>
     <style>
-        :root { --yt-bg: #0f0f0f; --yt-text: #ffffff; --yt-gray: #aaaaaa; --yt-card: #272727; }
+        :root { --yt-bg: #ffffff; --yt-text: #0f0f0f; --yt-gray: #606060; --yt-card: #f2f2f2; }
         body { font-family: "Roboto", Arial, sans-serif; margin: 0; background: var(--yt-bg); color: var(--yt-text); }
-        header { display: flex; align-items: center; padding: 10px 20px; background: var(--yt-bg); position: sticky; top: 0; z-index: 100; }
+        header { display: flex; align-items: center; padding: 10px 20px; background: var(--yt-bg); border-bottom: 1px solid #ddd; position: sticky; top: 0; z-index: 100; }
         .logo { color: #ff0000; font-size: 22px; font-weight: bold; cursor: pointer; text-decoration: none; display: flex; align-items: center; }
-        
         .main-container { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1fr 350px; gap: 24px; padding: 20px; }
         @media (max-width: 1000px) { .main-container { grid-template-columns: 1fr; } }
-
         .video-section video { width: 100%; border-radius: 12px; background: #000; aspect-ratio: 16/9; }
-        
-        #adminPanel { display: none; background: #333; color: gold; padding: 15px; border-radius: 12px; margin-bottom: 15px; border: 1px solid gold; }
-        #adminPanel input { background: #444; color: #fff; border: 1px solid gold; padding: 6px; width: 70px; border-radius: 4px; }
-
+        #adminPanel { display: none; background: #f9f9f9; color: #b8860b; padding: 15px; border-radius: 12px; margin-bottom: 15px; border: 1px solid gold; }
+        #adminPanel input { background: #fff; color: #333; border: 1px solid #ccc; padding: 6px; width: 70px; border-radius: 4px; }
         .video-title { font-size: 20px; font-weight: bold; margin: 12px 0 8px 0; }
         .stats-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
         .v-meta { color: var(--yt-gray); font-size: 14px; }
         .btn-group { display: flex; gap: 8px; }
-        .yt-btn { background: var(--yt-card); color: white; border: none; padding: 8px 16px; border-radius: 20px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 6px; }
-        .yt-btn:hover { background: #3f3f3f; }
-        .yt-btn.active { background: #ffffff; color: #000; }
-
-        .channel-info { background: var(--yt-card); padding: 15px; border-radius: 12px; display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+        .yt-btn { background: var(--yt-card); color: #0f0f0f; border: none; padding: 8px 16px; border-radius: 20px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+        .yt-btn.active { background: #0f0f0f; color: #fff; }
+        .channel-info { background: #fff; padding: 15px 0; display: flex; align-items: center; gap: 12px; margin-top: 10px; border-top: 1px solid #eee; border-bottom: 1px solid #eee; }
         .channel-icon { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; cursor: pointer; }
-        .sub-btn { background: #f1f1f1; color: #0f0f0f; border-radius: 20px; padding: 8px 16px; border: none; font-weight: bold; cursor: pointer; margin-left: auto; }
-        .sub-btn.subscribed { background: #333; color: #aaa; }
-
+        .sub-btn { background: #0f0f0f; color: #fff; border-radius: 20px; padding: 8px 16px; border: none; font-weight: bold; cursor: pointer; margin-left: auto; }
+        .sub-btn.subscribed { background: #eee; color: #606060; }
         .comment-section { margin-top: 24px; }
         .comment-input-box { display: flex; gap: 12px; margin-bottom: 20px; }
-        .comment-input-box input { background: transparent; border: none; border-bottom: 1px solid #333; color: white; width: 100%; padding: 8px 0; outline: none; }
-        .comment-input-box input:focus { border-bottom: 2px solid white; }
+        .comment-input-box input { background: transparent; border: none; border-bottom: 1px solid #ddd; color: #0f0f0f; width: 100%; padding: 8px 0; outline: none; }
         .comment-item { display: flex; gap: 12px; margin-bottom: 16px; }
         .c-icon { width: 32px; height: 32px; border-radius: 50%; }
         .c-body { font-size: 14px; }
@@ -108,9 +100,7 @@
     });
 
     onAuthStateChanged(auth, u => { 
-        user = u; 
-        loadVideo(); 
-        loadComments();
+        user = u; loadVideo(); loadComments();
     });
 
     document.getElementById('subBtn').onclick = toggleSub;
@@ -120,17 +110,14 @@
     function loadVideo() {
         if(!vId) return;
         onSnapshot(doc(db, "videos", vId), async snap => {
+            if(!snap.exists()) return;
             const d = snap.data(); authorId = d.userId;
-            document.getElementById('player').src = d.url;
+            const player = document.getElementById('player');
+            player.src = d.url;
             document.getElementById('vTitle').innerText = d.title;
             document.getElementById('vViews').innerText = (d.views || 0).toLocaleString();
             document.getElementById('vLikes').innerText = (d.likes || 0).toLocaleString();
             
-            if(isAdmin) {
-                document.getElementById('admViews').value = d.views || 0;
-                document.getElementById('admLikes').value = d.likes || 0;
-            }
-
             if(user) {
                 const lSnap = await getDoc(doc(db, "videos", vId, "likes", user.uid));
                 document.getElementById('likeBtn').classList.toggle('active', lSnap.exists());
@@ -200,7 +187,6 @@
     }
 
     function loadComments() {
-        // 並び替えエラーを回避するため orderBy を一旦除去
         const q = query(collection(db, "comments"), where("videoId", "==", vId));
         onSnapshot(q, snap => {
             const list = document.getElementById('commentList'); list.innerHTML = "";
