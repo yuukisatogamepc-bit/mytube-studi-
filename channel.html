@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>チャンネル - MyTube</title>
+    <style>
+        body { font-family: sans-serif; margin: 0; background: #f9f9f9; }
+        .header-banner { height: 150px; background: #ccc; }
+        .profile-section { max-width: 900px; margin: -50px auto 20px; padding: 0 20px; display: flex; align-items: flex-end; gap: 20px; }
+        .profile-icon { width: 120px; height: 120px; border-radius: 50%; border: 4px solid white; }
+        .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; padding: 20px; max-width: 1200px; margin: 0 auto; }
+        .video-card video { width: 100%; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <div class="header-banner"></div>
+    <div class="profile-section">
+        <img id="userIcon" class="profile-icon">
+        <div>
+            <h1 id="userName">読み込み中...</h1>
+            <p id="subCount">読み込み中...</p>
+        </div>
+    </div>
+    <hr>
+    <div class="video-grid" id="channelVideos"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = { /* あなたのConfig */ };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        const params = new URLSearchParams(window.location.search);
+        const targetUid = params.get('uid');
+
+        async function loadChannel() {
+            // その人の動画を取得
+            const q = query(collection(db, "videos"), where("userId", "==", targetUid));
+            const snap = await getDocs(q);
+            const list = document.getElementById('channelVideos');
+            
+            if (snap.empty) { list.innerHTML = "まだ動画がありません。"; }
+            
+            snap.forEach(doc => {
+                const data = doc.data();
+                if (!document.getElementById('userName').innerText || document.getElementById('userName').innerText === "読み込み中...") {
+                    document.getElementById('userName').innerText = data.userName;
+                    document.getElementById('userIcon').src = data.userIcon;
+                }
+                const div = document.createElement('div');
+                div.className = "video-card";
+                div.innerHTML = `<video src="${data.url}" onclick="location.href='watch.html?id=${doc.id}'"></video><h3>${data.title}</h3>`;
+                list.appendChild(div);
+            });
+        }
+        loadChannel();
+    </script>
+</body>
+</html>
