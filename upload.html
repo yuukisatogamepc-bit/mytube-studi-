@@ -1,7 +1,43 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyTube - 動画投稿</title>
+    <style>
+        body { font-family: sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 90%; max-width: 400px; text-align: center; }
+        h2 { color: #ff0000; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        button { width: 100%; padding: 14px; background: #ff0000; color: white; border: none; border-radius: 25px; font-weight: bold; cursor: pointer; font-size: 16px; margin-top: 10px; }
+        button:disabled { background: #ccc; }
+        #status { margin-top: 15px; color: #606770; font-size: 14px; min-height: 1.2em; }
+        .bar-bg { width: 100%; background: #eee; border-radius: 10px; height: 10px; margin-top: 15px; display: none; overflow: hidden; }
+        #bar { width: 0%; height: 100%; background: #ff0000; transition: width 0.3s; }
+        .nav-link { display: block; margin-top: 20px; color: #606770; text-decoration: none; font-size: 13px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>動画を投稿する</h2>
+    <input type="text" id="videoTitle" placeholder="動画のタイトル">
+    <input type="file" id="videoFile" accept="video/*">
+    <button id="btn" onclick="uploadVideo()">アップロード開始</button>
+    
+    <div class="bar-bg" id="barBg">
+        <div id="bar"></div>
+    </div>
+    <div id="status"></div>
+
+    <a href="index.html" class="nav-link">← ホームに戻る</a>
+</div>
+
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
+    // Firebase設定
     const firebaseConfig = {
         apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o",
         authDomain: "mytube-f4544.firebaseapp.com",
@@ -26,10 +62,10 @@
 
         btn.disabled = true;
         barBg.style.display = 'block';
-        status.innerText = "長い動画を準備中...";
+        status.innerText = "長い動画を処理中...";
 
-        // 1回に送るサイズを10MBに設定（安定性重視）
-        const chunkSize = 10 * 1024 * 1024; 
+        // 6MBずつに分割して送信（1分以上の動画でも安定します）
+        const chunkSize = 6 * 1024 * 1024; 
         const totalChunks = Math.ceil(file.size / chunkSize);
         const uniqueUploadId = 'id_' + Date.now();
         let videoUrl = "";
@@ -42,7 +78,7 @@
 
                 const formData = new FormData();
                 formData.append("file", chunk);
-                formData.append("upload_preset", "mytube_preset"); // プリセット名を確認！
+                formData.append("upload_preset", "mytube_preset");
 
                 const contentRange = `bytes ${start}-${end - 1}/${file.size}`;
 
@@ -55,15 +91,12 @@
                     }
                 });
 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error.message);
-                }
-
                 const result = await response.json();
+                if (!response.ok) throw new Error(result.error.message);
+
                 const progress = Math.round(((i + 1) / totalChunks) * 100);
                 bar.style.width = progress + "%";
-                status.innerText = `アップロード中: ${progress}% (${i+1}/${totalChunks})`;
+                status.innerText = `アップロード中: ${progress}%`;
 
                 if (i === totalChunks - 1) videoUrl = result.secure_url;
             }
@@ -84,3 +117,6 @@
         }
     };
 </script>
+
+</body>
+</html>
