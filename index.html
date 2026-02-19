@@ -8,25 +8,32 @@
         :root { --primary-color: #ff0000; --bg-color: #f9f9f9; }
         body { font-family: sans-serif; background: var(--bg-color); margin: 0; padding: 20px; }
         header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
-        h1 { color: var(--primary-color); margin: 0; cursor: pointer; }
-        .upload-link { text-decoration: none; background: var(--primary-color); color: white; padding: 10px 20px; border-radius: 20px; font-weight: bold; }
+        .user-area { display: flex; align-items: center; gap: 10px; }
+        .user-icon { width: 32px; height: 32px; border-radius: 50%; }
+        .btn-upload { text-decoration: none; background: var(--primary-color); color: white; padding: 8px 16px; border-radius: 20px; font-weight: bold; font-size: 14px; }
         #videoList { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
-        .video-card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: pointer; }
-        video { width: 100%; aspect-ratio: 16 / 9; pointer-events: none; background: #000; }
+        .video-card { background: white; border-radius: 12px; overflow: hidden; position: relative; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        video { width: 100%; aspect-ratio: 16 / 9; background: #000; cursor: pointer; }
         .video-info { padding: 12px; }
-        .video-title { font-weight: bold; font-size: 16px; margin-bottom: 5px; }
+        .video-title { font-weight: bold; margin-bottom: 5px; }
+        .delete-btn { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6); color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; display: none; }
+        .video-card:hover .delete-btn { display: block; }
     </style>
 </head>
 <body>
 <header>
-    <h1 onclick="location.href='index.html'">MyTube</h1>
-    <a href="upload.html" class="upload-link">＋ 投稿する</a>
+    <h1 style="color:red; cursor:pointer;" onclick="location.href='index.html'">MyTube</h1>
+    <div class="user-area" id="userArea">
+        <button onclick="login()">ログイン</button>
+    </div>
 </header>
-<div id="videoList"><p id="loading">動画を読み込み中...</p></div>
+
+<div id="videoList"></div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, query, orderBy, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, query, orderBy, onSnapshot, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o",
@@ -39,27 +46,52 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+    const auth = getAuth(app);
+    const provider = new GoogleAuthProvider();
 
-    async function loadVideos() {
-        const videoList = document.getElementById('videoList');
-        try {
-            const q = query(collection(db, "videos"), orderBy("createdAt", "desc"));
-            const querySnapshot = await getDocs(q);
-            document.getElementById('loading').style.display = 'none';
-            querySnapshot.forEach((doc) => {
-                const data = doc.data();
+    window.login = () => signInWithPopup(auth, provider);
+    window.logout = () => signOut(auth);
+
+    onAuthStateChanged(auth, (user) => {
+        const area = document.getElementById('userArea');
+        if (user) {
+            area.innerHTML = `
+                <a href="upload.html" class="btn-upload">投稿</a>
+                <img src="${user.photoURL}" class="user-icon">
+                <button onclick="logout()" style="background:none; border:none; cursor:pointer; font-size:12px;">ログアウト</button>
+            `;
+        } else {
+            area.innerHTML = `<button onclick="login()">ログイン</button>`;
+        }
+        loadVideos(user);
+    });
+
+    function loadVideos(user) {
+        const q = query(collection(db, "videos"), orderBy("createdAt", "desc"));
+        onSnapshot(q, (snapshot) => {
+            const list = document.getElementById('videoList');
+            list.innerHTML = "";
+            snapshot.forEach((vDoc) => {
+                const data = vDoc.data();
                 const card = document.createElement('div');
                 card.className = 'video-card';
-                card.onclick = () => location.href = `watch.html?id=${doc.id}`;
+                // 投稿者が自分なら削除ボタンを表示
+                const isOwner = user && data.userId === user.uid;
                 card.innerHTML = `
-                    <video src="${data.url}"></video>
+                    <video src="${data.url}" onclick="location.href='watch.html?id=${vDoc.id}'"></video>
+                    ${isOwner ? `<button class="delete-btn" onclick="deleteVideo('${vDoc.id}')">削除</button>` : ''}
                     <div class="video-info"><div class="video-title">${data.title}</div></div>
                 `;
-                videoList.appendChild(card);
+                list.appendChild(card);
             });
-        } catch (e) { console.error(e); }
+        });
     }
-    loadVideos();
+
+    window.deleteVideo = async (id) => {
+        if (confirm("この動画を削除しますか？")) {
+            await deleteDoc(doc(db, "videos", id));
+        }
+    };
 </script>
 </body>
 </html>
