@@ -14,7 +14,8 @@
         #adminPanel input { background: #333; color: #fff; border: 1px solid gold; padding: 4px; width: 65px; margin-right: 10px; }
         .video-info { margin-top: 15px; }
         .stats-bar { display: flex; align-items: center; gap: 15px; margin: 10px 0; color: #606060; font-size: 14px; }
-        .like-btn { background: #eee; border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-weight: bold; }
+        .like-btn { background: #eee; border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .like-btn.active { background: #065fd4; color: white; }
         .channel-row { display: flex; align-items: center; gap: 12px; padding: 15px 0; border-top: 1px solid #eee; border-bottom: 1px solid #eee; margin-top: 15px; }
         .channel-icon { width: 40px; height: 40px; border-radius: 50%; cursor: pointer; object-fit: cover; }
         .sub-btn { background: #0f0f0f; color: white; border-radius: 20px; padding: 8px 18px; border: none; font-weight: bold; cursor: pointer; margin-left: auto; }
@@ -54,7 +55,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where, orderBy, addDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where, orderBy, addDoc, deleteDoc, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
@@ -78,7 +79,6 @@
         if (cmd === "abbmytube") {
             isAdmin = !isAdmin;
             document.getElementById('adminPanel').style.display = isAdmin ? 'block' : 'none';
-            loadComments();
         }
     });
 
@@ -95,34 +95,60 @@
             const d = snap.data(); authorId = d.userId;
             document.getElementById('player').src = d.url;
             document.getElementById('vTitle').innerText = d.title;
-            document.getElementById('vViews').innerText = d.views || 0;
-            document.getElementById('vLikes').innerText = d.likes || 0;
-            document.getElementById('admViews').value = d.views || 0;
-            document.getElementById('admLikes').value = d.likes || 0;
+            document.getElementById('vViews').innerText = (d.views || 0).toLocaleString();
+            document.getElementById('vLikes').innerText = (d.likes || 0).toLocaleString();
+            
+            if(isAdmin) {
+                document.getElementById('admViews').value = d.views || 0;
+                document.getElementById('admLikes').value = d.likes || 0;
+            }
+
+            // 高評価済みチェック
+            if(user) {
+                const lSnap = await getDoc(doc(db, "videos", vId, "likes", user.uid));
+                document.getElementById('likeBtn').classList.toggle('active', lSnap.exists());
+            }
+
             const uSnap = await getDoc(doc(db, "users", d.userId));
             if (uSnap.exists()) {
                 const ud = uSnap.data();
                 document.getElementById('cName').innerText = ud.name;
                 document.getElementById('cIcon').src = ud.icon || "";
-                document.getElementById('cSubs').innerText = `登録者 ${ud.subCount || 0}人`;
-                document.getElementById('admSubs').value = ud.subCount || 0;
+                document.getElementById('cSubs').innerText = `登録者 ${(ud.subCount || 0).toLocaleString()}人`;
+                if(isAdmin) document.getElementById('admSubs').value = ud.subCount || 0;
             }
         });
     }
 
+    // ★高評価を1回までに制限
     window.handleLike = async () => {
         if (!user) return alert("ログインが必要です");
-        const ref = doc(db, "videos", vId);
-        const s = await getDoc(ref);
-        await updateDoc(ref, { likes: (s.data().likes || 0) + 1 });
+        const likeRef = doc(db, "videos", vId, "likes", user.uid);
+        const videoRef = doc(db, "videos", vId);
+        const lSnap = await getDoc(likeRef);
+
+        if (lSnap.exists()) {
+            await deleteDoc(likeRef);
+            await updateDoc(videoRef, { likes: increment(-1) });
+        } else {
+            await setDoc(likeRef, { at: serverTimestamp() });
+            await updateDoc(videoRef, { likes: increment(1) });
+        }
     };
 
+    // ★チャンネル登録ボタンの反応修正
     window.toggleSub = async () => {
         if (!user) return alert("ログインしてください");
-        const ref = doc(db, "users", user.uid, "subscriptions", authorId);
-        const s = await getDoc(ref);
-        if (s.exists()) { await deleteDoc(ref); alert("解除しました"); }
-        else { await setDoc(ref, { at: serverTimestamp() }); alert("登録しました"); }
+        if (user.uid === authorId) return alert("自分は登録できません");
+        const subRef = doc(db, "users", user.uid, "subscriptions", authorId);
+        const s = await getDoc(subRef);
+        if (s.exists()) { 
+            await deleteDoc(subRef); 
+            alert("解除しました"); 
+        } else { 
+            await setDoc(subRef, { at: serverTimestamp() }); 
+            alert("登録しました"); 
+        }
     };
 
     window.adminSave = async () => {
