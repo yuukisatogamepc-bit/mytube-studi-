@@ -5,89 +5,63 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MyTube - チャンネル</title>
     <style>
-        /* 元のシンプルなスタイルを復元 */
-        :root { --primary-color: #ff0000; --bg-color: #f9f9f9; }
-        body { font-family: sans-serif; background: var(--bg-color); margin: 0; padding: 0; }
-        header { padding: 20px; display: flex; align-items: center; gap: 20px; background: white; border-bottom: 1px solid #ddd; }
-        .channel-icon-large { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; }
-        .channel-info h2 { margin: 0; font-size: 24px; }
-        .sub-text { color: #606060; font-size: 14px; margin-top: 5px; }
-        
-        #videoList { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; padding: 20px; }
-        .video-card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: pointer; }
-        video { width: 100%; aspect-ratio: 16/9; background: black; object-fit: cover; }
-        .video-title { padding: 10px; font-weight: bold; font-size: 14px; }
+        body { font-family: sans-serif; background: #f9f9f9; margin: 0; }
+        header { display: flex; align-items: center; padding: 10px 20px; background: white; border-bottom: 1px solid #ddd; }
+        .logo { color: red; font-size: 24px; font-weight: bold; cursor: pointer; text-decoration: none; }
+        .channel-header { padding: 30px 20px; display: flex; align-items: center; gap: 20px; background: white; margin-bottom: 1px; }
+        .c-icon-l { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; }
+        #videoGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 15px; padding: 20px; }
+        .v-card { cursor: pointer; }
+        .v-thumb { width: 100%; aspect-ratio: 16/9; border-radius: 8px; object-fit: cover; background: #000; }
+        .v-title { font-weight: bold; font-size: 14px; margin-top: 8px; }
     </style>
 </head>
 <body>
 
-<header>
-    <img src="" class="channel-icon-large" id="channelIcon">
-    <div class="channel-info">
-        <h2 id="channelName">読み込み中...</h2>
-        <div id="subCount" class="sub-text">登録者 0人</div>
-    </div>
-    <button onclick="location.href='index.html'" style="margin-left:auto; padding:8px 15px; border-radius:20px; border:1px solid #ccc; background:#fff; cursor:pointer;">ホーム</button>
-</header>
+<header><a href="index.html" class="logo">MyTube</a></header>
 
-<div id="videoList"></div>
+<div class="channel-header">
+    <img src="" class="c-icon-l" id="hIcon">
+    <div>
+        <h2 id="hName" style="margin:0;">読み込み中...</h2>
+        <div id="hSubs" style="color:#606060; font-size:14px; margin-top:5px;">登録者 0人</div>
+    </div>
+</div>
+
+<div id="videoGrid"></div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, collection, query, where, getDocs, onSnapshot, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, doc, collection, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    const firebaseConfig = {
-        apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o",
-        authDomain: "mytube-f4544.firebaseapp.com",
-        projectId: "mytube-f4544",
-        storageBucket: "mytube-f4544.firebasestorage.app",
-        messagingSenderId: "655444283107",
-        appId: "1:655444283107:web:04f9173faf2d951790ffd6"
-    };
-
+    const firebaseConfig = { /* Config */ };
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+    const uid = new URLSearchParams(window.location.search).get('uid');
 
-    const params = new URLSearchParams(window.location.search);
-    const targetUid = params.get('uid');
-
-    if (targetUid) {
-        loadChannelInfo();
-        loadChannelVideos();
-    } else {
-        location.href = 'index.html';
-    }
-
-    async function loadChannelInfo() {
-        // リアルタイム監視で管理者が数値を書き換えたら即反映させる
-        onSnapshot(doc(db, "users", targetUid), async (uDoc) => {
-            if (uDoc.exists()) {
-                const data = uDoc.data();
-                document.getElementById('channelName').innerText = data.name || "ユーザー";
-                document.getElementById('channelIcon').src = data.icon || "";
-
-                // 管理者が設定した subCount があればそれを優先、なければ 0
-                const count = data.subCount !== undefined ? data.subCount : 0;
-                document.getElementById('subCount').innerText = `登録者 ${count.toLocaleString()}人`;
-            }
+    if (uid) {
+        // チャンネル情報 (リアルタイム)
+        onSnapshot(doc(db, "users", uid), snap => {
+            const d = snap.data();
+            document.getElementById('hName').innerText = d.name;
+            document.getElementById('hIcon').src = d.icon || "";
+            document.getElementById('hSubs').innerText = `登録者 ${(d.subCount || 0).toLocaleString()}人`;
         });
-    }
 
-    function loadChannelVideos() {
-        const q = query(collection(db, "videos"), where("userId", "==", targetUid), orderBy("createdAt", "desc"));
-        onSnapshot(q, (snapshot) => {
-            const list = document.getElementById('videoList');
-            list.innerHTML = "";
-            snapshot.forEach((vDoc) => {
-                const data = vDoc.data();
-                const card = document.createElement('div');
-                card.className = 'video-card';
-                card.onclick = () => location.href = `watch.html?id=${vDoc.id}`;
-                card.innerHTML = `
-                    <video src="${data.url}"></video>
-                    <div class="video-title">${data.title}</div>
+        // 動画一覧 (シンプルなクエリ)
+        onSnapshot(query(collection(db, "videos"), where("userId", "==", uid)), snap => {
+            const grid = document.getElementById('videoGrid');
+            grid.innerHTML = "";
+            snap.forEach(vDoc => {
+                const vd = vDoc.data();
+                const div = document.createElement('div');
+                div.className = "v-card";
+                div.onclick = () => location.href = `watch.html?id=${vDoc.id}`;
+                div.innerHTML = `
+                    <img src="${vd.thumbnail || 'https://via.placeholder.com/240x135?text=No+Image'}" class="v-thumb">
+                    <div class="v-title">${vd.title}</div>
                 `;
-                list.appendChild(card);
+                grid.appendChild(div);
             });
         });
     }
