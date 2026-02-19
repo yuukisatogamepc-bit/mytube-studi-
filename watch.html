@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyTube - 再生</title>
+    <style>
+        body { font-family: sans-serif; margin: 0; background: #f9f9f9; padding: 20px; }
+        .main-container { max-width: 900px; margin: 0 auto; }
+        video { width: 100%; background: #000; border-radius: 12px; }
+        h2 { margin: 15px 0; }
+        .actions { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #ddd; padding-bottom: 15px; }
+        button { padding: 8px 16px; border-radius: 20px; border: none; cursor: pointer; font-weight: bold; }
+        .btn-like { background: #eee; }
+        .btn-sub { background: #0f0f0f; color: white; }
+        
+        .comment-section { background: white; padding: 20px; border-radius: 12px; }
+        #commentInput { width: 80%; padding: 10px; border: none; border-bottom: 1px solid #ddd; outline: none; }
+        .comment-item { border-bottom: 1px solid #eee; padding: 10px 0; }
+        .comment-text { font-size: 14px; margin-top: 5px; }
+    </style>
+</head>
+<body>
+<div class="main-container">
+    <video id="player" controls autoplay></video>
+    <h2 id="videoTitle">読み込み中...</h2>
+    
+    <div class="actions">
+        <button class="btn-sub" id="subBtn" onclick="alert('チャンネル登録しました！')">チャンネル登録</button>
+        <button class="btn-like" onclick="alert('高評価しました！')">👍 高評価</button>
+    </div>
+
+    <div class="comment-section">
+        <h3>コメント</h3>
+        <input type="text" id="commentInput" placeholder="コメントを追加...">
+        <button onclick="addComment()">投稿</button>
+        <div id="commentList"></div>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, doc, getDoc, collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o",
+        authDomain: "mytube-f4544.firebaseapp.com",
+        projectId: "mytube-f4544",
+        storageBucket: "mytube-f4544.firebasestorage.app",
+        messagingSenderId: "655444283107",
+        appId: "1:655444283107:web:04f9173faf2d951790ffd6"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const params = new URLSearchParams(window.location.search);
+    const videoId = params.get('id');
+
+    // 動画情報の取得
+    async function loadVideoData() {
+        const docRef = doc(db, "videos", videoId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            document.getElementById('player').src = data.url;
+            document.getElementById('videoTitle').innerText = data.title;
+        }
+    }
+
+    // コメントの投稿
+    window.addComment = async function() {
+        const input = document.getElementById('commentInput');
+        if (!input.value) return;
+        await addDoc(collection(db, "comments"), {
+            videoId: videoId,
+            text: input.value,
+            createdAt: serverTimestamp()
+        });
+        input.value = "";
+    };
+
+    // コメントのリアルタイム読み込み（他人からも見える！）
+    const q = query(collection(db, "comments"), where("videoId", "==", videoId), orderBy("createdAt", "desc"));
+    onSnapshot(q, (snapshot) => {
+        const list = document.getElementById('commentList');
+        list.innerHTML = "";
+        snapshot.forEach((doc) => {
+            const div = document.createElement('div');
+            div.className = 'comment-item';
+            div.innerHTML = `<div class="comment-text">${doc.data().text}</div>`;
+            list.appendChild(div);
+        });
+    });
+
+    loadVideoData();
+</script>
+</body>
+</html>
