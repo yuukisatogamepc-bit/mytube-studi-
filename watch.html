@@ -3,17 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MyTube - 再生(管理者モード搭載)</title>
+    <title>MyTube - 再生(Admin Ultimate)</title>
     <style>
         body { font-family: sans-serif; margin: 0; background: #f9f9f9; padding: 20px; color: #0f0f0f; }
         .main-container { max-width: 900px; margin: 0 auto; }
         video { width: 100%; background: #000; border-radius: 12px; aspect-ratio: 16/9; }
         
-        /* 管理者パネル */
-        #adminEditPanel { display: none; background: #222; color: #fff; padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 2px solid gold; box-shadow: 0 0 15px rgba(255,215,0,0.3); }
-        .admin-input-group { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-        #adminEditPanel input { background: #444; color: white; border: 1px solid #666; padding: 8px; border-radius: 5px; width: 100px; }
-        .admin-btn { background: gold; color: black; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        /* 管理者パネル：初期は非表示 */
+        #adminEditPanel { display: none; background: #1a1a1a; color: #fff; padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 2px solid gold; box-shadow: 0 0 20px rgba(255,215,0,0.4); }
+        .admin-input-group { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
+        .admin-input-group div { display: flex; flex-direction: column; gap: 5px; }
+        #adminEditPanel input { background: #333; color: white; border: 1px solid gold; padding: 8px; border-radius: 5px; width: 100px; }
+        .admin-btn { background: gold; color: black; border: none; padding: 12px 25px; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px; transition: 0.3s; }
+        .admin-btn:hover { background: #ffd700; transform: scale(1.05); }
 
         .video-info { margin-top: 15px; }
         .stats-row { color: #606060; font-size: 14px; margin: 8px 0; }
@@ -25,29 +27,29 @@
         .sub-btn { background: #0f0f0f; color: white; border-radius: 20px; padding: 10px 20px; border: none; font-weight: bold; cursor: pointer; }
 
         .comment-section { margin-top: 20px; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .comment-item { display: flex; gap: 12px; margin-bottom: 20px; position: relative; }
+        .comment-item { display: flex; gap: 12px; margin-bottom: 20px; position: relative; border-bottom: 1px solid #eee; padding-bottom: 10px; }
         .c-icon { width: 35px; height: 35px; border-radius: 50%; background: #eee; }
-        .comment-del-btn { color: #ff4d4d; font-size: 12px; cursor: pointer; background: none; border: 1px solid #ff4d4d; padding: 2px 8px; border-radius: 4px; margin-left: auto; display: none; }
+        .comment-del-btn { color: white; background: #ff4d4d; border: none; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; display: none; margin-left: auto; }
     </style>
 </head>
 <body>
 
 <div class="main-container">
     <div id="adminEditPanel">
-        <h3 style="color:gold; margin:0 0 15px 0;">👑 ADMIN CONTROL PANEL</h3>
+        <h3 style="color:gold; margin:0 0 15px 0;">👑 MASTER ADMIN CONTROL</h3>
         <div class="admin-input-group">
-            <div>再生数: <input type="number" id="editViews"></div>
-            <div>高評価: <input type="number" id="editLikes"></div>
-            <div>登録者: <input type="number" id="editSubs"></div>
-            <button class="admin-btn" onclick="updateVideoStats()">データを更新</button>
+            <div><label>再生数</label><input type="number" id="editViews"></div>
+            <div><label>高評価</label><input type="number" id="editLikes"></div>
+            <div><label>登録者数</label><input type="number" id="editSubs"></div>
+            <button class="admin-btn" onclick="updateEverything()">全てのデータを上書き保存</button>
         </div>
-        <p style="font-size:11px; color:#aaa; margin-top:10px;">※abbmytube で表示/非表示を切り替え</p>
+        <div style="font-size:11px; color:gold; margin-top:10px;">※abbmytube を入力するたびにパネルを切り替えます</div>
     </div>
 
     <video id="player" controls autoplay></video>
     
     <div class="video-info">
-        <h2 id="videoTitle" style="margin:10px 0;">動画を読み込み中...</h2>
+        <h2 id="videoTitle">動画を読み込み中...</h2>
         <div class="stats-row">
             再生回数 <span id="viewCountDisplay">0</span>回 ・ 高評価 <span id="likeCountDisplay">0</span>
         </div>
@@ -57,16 +59,16 @@
         <img src="" class="channel-icon" id="authorIcon" onclick="goToChannel()">
         <div class="channel-details">
             <span class="author-name" id="authorName" onclick="goToChannel()">読み込み中...</span>
-            <div id="subCountDisplay" style="font-size:12px; color:#606060;">チャンネル登録者数 0人</div>
+            <div id="subCountDisplay" style="font-size:12px; color:#606060;">登録者 0人</div>
         </div>
         <button class="sub-btn" id="subscribeBtn">チャンネル登録</button>
     </div>
 
     <div class="comment-section">
-        <h4 id="commentCount">コメント</h4>
+        <h4>コメント</h4>
         <div style="display:flex; gap:10px; margin-bottom:25px;">
-            <input type="text" id="commentInput" placeholder="コメントを入力..." style="flex:1; padding:10px; border:1px solid #ddd; border-radius:5px;">
-            <button onclick="sendComment()" style="padding:10px 20px; cursor:pointer;">投稿</button>
+            <input type="text" id="commentInput" placeholder="公開コメントを入力..." style="flex:1; padding:10px; border:1px solid #ddd; border-radius:5px;">
+            <button onclick="sendComment()">投稿</button>
         </div>
         <div id="commentList"></div>
     </div>
@@ -74,7 +76,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, updateDoc, collection, addDoc, query, where, onSnapshot, orderBy, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, updateDoc, setDoc, collection, addDoc, query, where, onSnapshot, orderBy, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
@@ -86,7 +88,8 @@
         appId: "1:655444283107:web:04f9173faf2d951790ffd6"
     };
 
-    const ADMIN_UID = "tP5CqCTRO3f2QQ8jdoj0ftY8kZU2"; // あなたのIDを設定済み
+    // 👑 あなたのUIDを完全固定
+    const ADMIN_UID = "tP5CqCTRO3f2QQ8jdoj0ftY8kZU2"; 
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
@@ -96,18 +99,18 @@
     const videoId = params.get('id');
     let currentUser = null;
     let isAdminMode = false;
-    let targetAuthorId = "";
+    let targetAuthorId = ""; // 投稿者のUIDを保持
 
-    // 隠しコマンド (abbmytube)
+    // 隠しコマンド判定
     let inputBuffer = "";
     window.addEventListener('keydown', (e) => {
         inputBuffer += e.key.toLowerCase();
-        if (inputBuffer.length > 9) inputBuffer = inputBuffer.substring(inputBuffer.length - 9);
-        if (inputBuffer === "abbmytube") {
+        if (inputBuffer.slice(-9) === "abbmytube") {
             isAdminMode = !isAdminMode;
             document.getElementById('adminEditPanel').style.display = isAdminMode ? 'block' : 'none';
             loadComments(); 
-            alert("ADMIN MODE: " + (isAdminMode ? "ON" : "OFF"));
+            alert("ADMIN MODE: " + (isAdminMode ? "有効" : "無効"));
+            inputBuffer = "";
         }
     });
 
@@ -122,14 +125,14 @@
         onSnapshot(doc(db, "videos", videoId), async (vDoc) => {
             if (!vDoc.exists()) return;
             const data = vDoc.data();
-            targetAuthorId = data.userId;
+            targetAuthorId = data.userId; // ここで投稿者IDをセット
             
             document.getElementById('player').src = data.url;
             document.getElementById('videoTitle').innerText = data.title;
             document.getElementById('viewCountDisplay').innerText = (data.views || 0).toLocaleString();
             document.getElementById('likeCountDisplay').innerText = (data.likes || 0).toLocaleString();
 
-            // パネルの初期値
+            // 管理者パネルの初期値をセット
             document.getElementById('editViews').value = data.views || 0;
             document.getElementById('editLikes').value = data.likes || 0;
 
@@ -137,16 +140,39 @@
             if (userDoc.exists()) {
                 const uData = userDoc.data();
                 document.getElementById('authorName').innerText = uData.name;
-                document.getElementById('authorIcon').src = uData.icon || "https://via.placeholder.com/45";
-                document.getElementById('subCountDisplay').innerText = `チャンネル登録者数 ${(uData.subCount || 0).toLocaleString()}人`;
+                document.getElementById('authorIcon').src = uData.icon || "";
+                document.getElementById('subCountDisplay').innerText = `登録者 ${(uData.subCount || 0).toLocaleString()}人`;
                 document.getElementById('editSubs').value = uData.subCount || 0;
             }
         });
     }
 
-    window.goToChannel = () => {
-        if (targetAuthorId) location.href = `channel.html?uid=${targetAuthorId}`;
+    // 数値の一括更新
+    window.updateEverything = async () => {
+        if (!currentUser || currentUser.uid !== ADMIN_UID) {
+            alert("権限エラー: 管理者としてログインしてください。");
+            return;
+        }
+
+        const v = parseInt(document.getElementById('editViews').value) || 0;
+        const l = parseInt(document.getElementById('editLikes').value) || 0;
+        const s = parseInt(document.getElementById('editSubs').value) || 0;
+
+        try {
+            // 動画データの更新
+            await updateDoc(doc(db, "videos", videoId), { views: v, likes: l });
+
+            // 投稿者データの更新（setDoc + merge で確実に上書き）
+            if (targetAuthorId) {
+                await setDoc(doc(db, "users", targetAuthorId), { subCount: s }, { merge: true });
+                alert("【成功】全ての数値を更新しました！");
+            }
+        } catch (e) {
+            alert("エラー: " + e.message);
+        }
     };
+
+    window.goToChannel = () => { if (targetAuthorId) location.href = `channel.html?uid=${targetAuthorId}`; };
 
     function loadComments() {
         const q = query(collection(db, "comments"), where("videoId", "==", videoId), orderBy("createdAt", "desc"));
@@ -155,18 +181,16 @@
             list.innerHTML = "";
             snap.forEach(cDoc => {
                 const c = cDoc.data();
-                const isMyComment = currentUser && c.userId === currentUser.uid;
                 const isRealAdmin = currentUser && currentUser.uid === ADMIN_UID && isAdminMode;
-                
                 const div = document.createElement('div');
                 div.className = "comment-item";
                 div.innerHTML = `
-                    <img src="${c.userIcon || 'https://via.placeholder.com/35'}" class="c-icon">
+                    <img src="${c.userIcon}" class="c-icon">
                     <div style="flex:1">
-                        <b style="font-size:13px;">${c.userName}</b>
-                        <div style="font-size:14px; margin-top:3px;">${c.text}</div>
+                        <b>${c.userName}</b>
+                        <div>${c.text}</div>
                     </div>
-                    ${(isMyComment || isRealAdmin) ? `<button class="comment-del-btn" style="display:block" onclick="deleteComment('${cDoc.id}')">削除</button>` : ''}
+                    ${isRealAdmin ? `<button class="comment-del-btn" style="display:block" onclick="deleteComment('${cDoc.id}')">管理削除</button>` : ''}
                 `;
                 list.appendChild(div);
             });
@@ -175,41 +199,19 @@
 
     window.sendComment = async () => {
         const input = document.getElementById('commentInput');
-        if (!input.value || !currentUser) { alert("ログインが必要です"); return; }
+        if (!input.value || !currentUser) return;
         const userDoc = await getDoc(doc(db, "users", currentUser.uid));
-        const userData = userDoc.exists() ? userDoc.data() : { name: currentUser.displayName, icon: currentUser.photoURL };
-        
+        const userData = userDoc.data();
         await addDoc(collection(db, "comments"), {
-            videoId: videoId,
-            userId: currentUser.uid,
-            userName: userData.name,
-            userIcon: userData.icon,
-            text: input.value,
-            createdAt: serverTimestamp()
+            videoId: videoId, userId: currentUser.uid,
+            userName: userData.name, userIcon: userData.icon,
+            text: input.value, createdAt: serverTimestamp()
         });
         input.value = "";
     };
 
     window.deleteComment = async (id) => {
-        if (confirm("コメントを削除しますか？")) {
-            await deleteDoc(doc(db, "comments", id));
-        }
-    };
-
-    window.updateVideoStats = async () => {
-        if (!currentUser || currentUser.uid !== ADMIN_UID) return;
-        try {
-            await updateDoc(doc(db, "videos", videoId), {
-                views: parseInt(document.getElementById('editViews').value),
-                likes: parseInt(document.getElementById('editLikes').value)
-            });
-            if (targetAuthorId) {
-                await updateDoc(doc(db, "users", targetAuthorId), {
-                    subCount: parseInt(document.getElementById('editSubs').value)
-                });
-            }
-            alert("数値を更新しました！");
-        } catch(e) { alert("エラー: " + e.message); }
+        if (confirm("管理者権限で削除しますか？")) await deleteDoc(doc(db, "comments", id));
     };
 </script>
 </body>
