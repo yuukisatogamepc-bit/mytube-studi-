@@ -1,3 +1,59 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyTube - ホーム</title>
+    <style>
+        :root { --primary-color: #ff0000; --bg-color: #f9f9f9; }
+        body { font-family: sans-serif; background: var(--bg-color); margin: 0; padding: 20px; }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .user-area { display: flex; align-items: center; gap: 10px; }
+        .user-icon { width: 40px; height: 40px; border-radius: 50%; cursor: pointer; object-fit: cover; border: 2px solid #ddd; }
+        .btn-upload { text-decoration: none; background: var(--primary-color); color: white; padding: 8px 16px; border-radius: 20px; font-weight: bold; font-size: 14px; }
+        
+        #videoList { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+        .video-card { background: white; border-radius: 12px; overflow: hidden; position: relative; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        video { width: 100%; aspect-ratio: 16 / 9; background: #000; cursor: pointer; object-fit: cover; }
+        .video-info { padding: 12px; }
+        .video-title { font-weight: bold; color: #0f0f0f; }
+
+        .delete-btn { position: absolute; top: 10px; right: 10px; background: rgba(255,0,0,0.9); color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; display: none; z-index: 10; font-weight: bold; }
+        .video-card:hover .delete-btn { display: block; }
+
+        /* UID表示用の特別なスタイル */
+        #adminPanel { display: none; background: #333; color: #fff; padding: 15px; border-radius: 10px; margin-bottom: 20px; font-family: monospace; border: 2px solid gold; }
+        
+        .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
+        .modal-content { background: white; margin: 15% auto; padding: 25px; border-radius: 15px; width: 300px; text-align: center; }
+        .save-btn { background: #00b300; color: white; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div id="adminPanel">
+    <div style="font-weight:bold; color:gold; margin-bottom:5px;">👑 ADMIN MODE</div>
+    <div id="uidDisplay">UID: 取得中...</div>
+    <div style="font-size:12px; margin-top:5px; color:#ccc;">↑このIDをコピーして、コードの ADMIN_UID に貼り付けてください。</div>
+</div>
+
+<header>
+    <h1 style="color:red; cursor:pointer;" onclick="location.href='index.html'">MyTube</h1>
+    <div class="user-area" id="userArea"><button id="loginBtn">ログイン</button></div>
+</header>
+
+<div id="videoList">動画を読み込み中...</div>
+
+<div id="profileModal" class="modal">
+    <div class="modal-content">
+        <h3>プロフィール変更</h3>
+        <input type="text" id="editName" style="width:90%; padding:10px; margin-bottom:10px;" placeholder="名前">
+        <input type="text" id="editIcon" style="width:90%; padding:10px; margin-bottom:10px;" placeholder="アイコンURL">
+        <button class="save-btn" id="saveProfileBtn">保存</button>
+        <button onclick="document.getElementById('profileModal').style.display='none'">閉じる</button>
+    </div>
+</div>
+
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, query, orderBy, onSnapshot, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
@@ -12,7 +68,7 @@
         appId: "1:655444283107:web:04f9173faf2d951790ffd6"
     };
 
-    // あなたのUID（さっきcheck.htmlでコピーしたものに書き換えてください）
+    // ★UIDが判明したらここに貼り付けてください（今は空でOK）★
     const ADMIN_UID = "ここにあなたのUIDを貼る"; 
 
     const app = initializeApp(firebaseConfig);
@@ -20,23 +76,27 @@
     const auth = getAuth(app);
     const provider = new GoogleAuthProvider();
     let currentUser = null;
-    let isAdminMode = false; // 管理者モードの状態
+    let isAdminMode = false;
 
-    // --- 隠しコマンド判定のロジック ---
-    const secretCode = "abbmytube";
+    // 隠しコマンド判定 (abbmytube)
     let inputBuffer = "";
-
     window.addEventListener('keydown', (e) => {
         inputBuffer += e.key.toLowerCase();
-        if (inputBuffer.length > secretCode.length) {
-            inputBuffer = inputBuffer.substring(inputBuffer.length - secretCode.length);
-        }
+        if (inputBuffer.length > 9) inputBuffer = inputBuffer.substring(inputBuffer.length - 9);
         
-        if (inputBuffer === secretCode) {
-            isAdminMode = !isAdminMode; // モード切替
-            alert(isAdminMode ? "管理者モード：ON" : "管理者モード：OFF");
-            loadVideos(currentUser); // 表示を更新
-            inputBuffer = ""; // バッファをリセット
+        if (inputBuffer === "abbmytube") {
+            isAdminMode = !isAdminMode;
+            const panel = document.getElementById('adminPanel');
+            panel.style.display = isAdminMode ? 'block' : 'none';
+            
+            if (currentUser) {
+                document.getElementById('uidDisplay').innerText = "あなたのUID: " + currentUser.uid;
+            } else {
+                document.getElementById('uidDisplay').innerText = "ログインするとここにUIDが表示されます";
+            }
+            
+            loadVideos(currentUser);
+            inputBuffer = "";
         }
     });
 
@@ -45,12 +105,13 @@
         const area = document.getElementById('userArea');
         if (user) {
             const userDoc = await getDoc(doc(db, "users", user.uid));
-            let userData = userDoc.exists() ? userDoc.data() : { name: user.displayName, icon: user.photoURL };
+            const userData = userDoc.exists() ? userDoc.data() : { name: user.displayName, icon: user.photoURL };
             area.innerHTML = `
                 <a href="upload.html" class="btn-upload">投稿</a>
                 <img src="${userData.icon}" class="user-icon" id="userIconImg">
-                <button onclick="signOut(getAuth())" style="font-size:10px;">ログアウト</button>
+                <button id="logoutBtn" style="font-size:10px;">ログアウト</button>
             `;
+            document.getElementById('logoutBtn').onclick = () => signOut(auth);
             document.getElementById('userIconImg').onclick = () => {
                 document.getElementById('editName').value = userData.name;
                 document.getElementById('editIcon').value = userData.icon;
@@ -58,8 +119,7 @@
             };
         } else {
             area.innerHTML = `<button id="loginBtnIn">ログイン</button>`;
-            const btn = document.getElementById('loginBtnIn');
-            if(btn) btn.onclick = () => signInWithPopup(auth, provider);
+            document.getElementById('loginBtnIn').onclick = () => signInWithPopup(auth, provider);
         }
         loadVideos(user);
     });
@@ -74,7 +134,7 @@
                 const card = document.createElement('div');
                 card.className = 'video-card';
                 
-                // 管理者モードがON、かつUIDが一致している時だけ削除ボタンを出す
+                // 管理者IDが一致、かつモードがONの時
                 const isRealAdmin = user && user.uid === ADMIN_UID && isAdminMode;
                 const isOwner = user && data.userId === user.uid;
                 
@@ -89,12 +149,13 @@
     }
 
     window.deleteVideo = async (id) => {
-        if (confirm("この動画を消去しますか？")) {
+        if (confirm("消去しますか？")) {
             await deleteDoc(doc(db, "videos", id));
         }
     };
 
-    window.saveProfile = async () => {
+    document.getElementById('saveProfileBtn').onclick = async () => {
+        if(!currentUser) return;
         await setDoc(doc(db, "users", currentUser.uid), {
             name: document.getElementById('editName').value,
             icon: document.getElementById('editIcon').value,
@@ -103,3 +164,5 @@
         location.reload();
     };
 </script>
+</body>
+</html>
