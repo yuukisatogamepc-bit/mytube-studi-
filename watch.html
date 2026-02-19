@@ -3,58 +3,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MyTube - ログインしてコメント</title>
+    <title>MyTube - 再生</title>
     <style>
         body { font-family: sans-serif; margin: 0; background: #f9f9f9; padding: 20px; }
         .main-container { max-width: 900px; margin: 0 auto; }
-        video { width: 100%; background: #000; border-radius: 12px; }
-        .actions { display: flex; gap: 10px; margin: 15px 0; border-bottom: 1px solid #ddd; padding-bottom: 15px; }
-        button { padding: 8px 16px; border-radius: 20px; border: none; cursor: pointer; font-weight: bold; }
-        .btn-sub { background: #0f0f0f; color: white; }
+        video { width: 100%; background: #000; border-radius: 12px; aspect-ratio: 16/9; }
+        h2 { margin: 15px 0 5px 0; }
         
-        /* ログインエリア */
-        .auth-section { margin-bottom: 20px; text-align: right; }
-        .user-profile { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
-        .user-icon { width: 32px; height: 32px; border-radius: 50%; }
-        
-        .comment-section { background: white; padding: 20px; border-radius: 12px; }
+        /* 投稿者・チャンネル情報エリア */
+        .channel-info { display: flex; align-items: center; gap: 12px; margin: 15px 0; padding-bottom: 15px; border-bottom: 1px solid #ddd; }
+        .channel-icon { width: 40px; height: 40px; border-radius: 50%; cursor: pointer; background: #eee; }
+        .channel-details { flex-grow: 1; }
+        .author-name { font-weight: bold; cursor: pointer; display: block; }
+        .sub-btn { background: #0f0f0f; color: white; border-radius: 20px; padding: 8px 18px; border: none; font-weight: bold; cursor: pointer; }
+        .sub-btn.active { background: #eee; color: #606060; }
+
+        .auth-section { text-align: right; margin-bottom: 10px; }
+        .user-profile { display: flex; align-items: center; justify-content: flex-end; gap: 10px; font-size: 14px; }
+        .user-icon-small { width: 24px; height: 24px; border-radius: 50%; }
+
+        .comment-section { background: white; padding: 20px; border-radius: 12px; margin-top: 20px; }
         .input-area { margin-bottom: 20px; padding: 15px; border: 1px solid #eee; border-radius: 8px; }
         #commentInput { width: 100%; padding: 10px; border: none; border-bottom: 1px solid #ddd; outline: none; margin-bottom: 10px; }
-        
+        #replyTarget { display: none; background: #f0f0f0; padding: 5px 10px; font-size: 12px; border-radius: 4px; margin-bottom: 10px; }
+
         .comment-item { border-bottom: 1px solid #eee; padding: 15px 0; display: flex; gap: 12px; }
+        .reply-item { margin-left: 40px; background: #fafafa; border-bottom: none; border-radius: 8px; padding: 10px; }
         .comment-right { flex-grow: 1; }
-        .user-name { font-weight: bold; font-size: 13px; margin-bottom: 4px; }
-        .comment-text { font-size: 14px; }
+        .c-user-name { font-weight: bold; font-size: 13px; margin-bottom: 4px; }
+        .comment-text { font-size: 14px; margin-bottom: 5px; }
+        .reply-btn { font-size: 12px; color: #606060; background: none; border: none; cursor: pointer; padding: 0; }
     </style>
 </head>
 <body>
 <div class="main-container">
     <div class="auth-section" id="authSection">
-        <button onclick="login()">Googleでログイン</button>
+        <button onclick="login()">ログイン</button>
     </div>
 
     <video id="player" controls autoplay></video>
     <h2 id="videoTitle">読み込み中...</h2>
-    
-    <div class="actions">
-        <button class="btn-sub" onclick="alert('登録しました')">チャンネル登録</button>
-        <button class="btn-like" onclick="alert('高評価')">👍</button>
+
+    <div class="channel-info" id="channelArea">
+        <img src="" class="channel-icon" id="authorIcon">
+        <div class="channel-details">
+            <span class="author-name" id="authorName">読み込み中...</span>
+        </div>
+        <button class="sub-btn" id="subscribeBtn" style="display:none;">チャンネル登録</button>
     </div>
 
     <div class="comment-section">
         <h3>コメント</h3>
+        <div id="loginMsg">コメントするにはログインが必要です</div>
         <div class="input-area" id="inputArea" style="display:none;">
+            <div id="replyTarget"></div>
             <input type="text" id="commentInput" placeholder="コメントを入力...">
             <button onclick="sendComment()">投稿</button>
+            <button id="cancelReply" style="display:none; background:none; font-size:12px;" onclick="resetReply()">キャンセル</button>
         </div>
-        <p id="loginMsg">コメントするにはログインが必要です</p>
         <div id="commentList"></div>
     </div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, collection, addDoc, query, where, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, collection, addDoc, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
@@ -71,49 +84,96 @@
     const auth = getAuth(app);
     const provider = new GoogleAuthProvider();
 
-    let currentUser = null;
     const params = new URLSearchParams(window.location.search);
     const videoId = params.get('id');
+    let currentUser = null;
+    let currentReplyId = null;
 
-    // ログイン処理
     window.login = () => signInWithPopup(auth, provider);
     window.logout = () => signOut(auth);
 
-    // ログイン状態を監視
     onAuthStateChanged(auth, (user) => {
+        currentUser = user;
         const authSection = document.getElementById('authSection');
         const inputArea = document.getElementById('inputArea');
         const loginMsg = document.getElementById('loginMsg');
 
         if (user) {
-            currentUser = user;
             authSection.innerHTML = `
                 <div class="user-profile">
-                    <img src="${user.photoURL}" class="user-icon">
+                    <img src="${user.photoURL}" class="user-icon-small">
                     <span>${user.displayName}</span>
                     <button onclick="logout()">ログアウト</button>
                 </div>`;
             inputArea.style.display = 'block';
             loginMsg.style.display = 'none';
         } else {
-            currentUser = null;
-            authSection.innerHTML = `<button onclick="login()">Googleでログイン</button>`;
+            authSection.innerHTML = `<button onclick="login()">ログイン</button>`;
             inputArea.style.display = 'none';
             loginMsg.style.display = 'block';
         }
+        loadVideoData();
     });
 
-    // 動画読み込み
     async function loadVideoData() {
         if (!videoId) return;
         const docSnap = await getDoc(doc(db, "videos", videoId));
         if (docSnap.exists()) {
-            document.getElementById('player').src = docSnap.data().url;
-            document.getElementById('videoTitle').innerText = docSnap.data().title;
+            const data = docSnap.data();
+            document.getElementById('player').src = data.url;
+            document.getElementById('videoTitle').innerText = data.title;
+            
+            // 投稿者情報
+            const authorName = document.getElementById('authorName');
+            const authorIcon = document.getElementById('authorIcon');
+            authorName.innerText = data.userName || "不明";
+            authorIcon.src = data.userIcon || "";
+
+            const goToChannel = () => location.href = `channel.html?uid=${data.userId}`;
+            authorName.onclick = goToChannel;
+            authorIcon.onclick = goToChannel;
+
+            if (data.userId) setupSubscribe(data.userId);
         }
     }
 
-    // コメント投稿
+    async function setupSubscribe(authorId) {
+        const subBtn = document.getElementById('subscribeBtn');
+        if (!currentUser || currentUser.uid === authorId) {
+            subBtn.style.display = 'none';
+            return;
+        }
+        subBtn.style.display = 'block';
+        const subRef = doc(db, "users", currentUser.uid, "subscriptions", authorId);
+        onSnapshot(subRef, (doc) => {
+            if (doc.exists()) {
+                subBtn.innerText = "登録済み";
+                subBtn.classList.add('active');
+                subBtn.onclick = () => deleteDoc(subRef);
+            } else {
+                subBtn.innerText = "チャンネル登録";
+                subBtn.classList.remove('active');
+                subBtn.onclick = () => setDoc(subRef, { authorId: authorId });
+            }
+        });
+    }
+
+    window.setReply = (id, text) => {
+        currentReplyId = id;
+        const target = document.getElementById('replyTarget');
+        target.style.display = 'block';
+        target.innerText = `返信先: ${text.substring(0, 15)}...`;
+        document.getElementById('cancelReply').style.display = 'inline';
+        document.getElementById('commentInput').focus();
+    };
+
+    window.resetReply = () => {
+        currentReplyId = null;
+        document.getElementById('replyTarget').style.display = 'none';
+        document.getElementById('cancelReply').style.display = 'none';
+        document.getElementById('commentInput').value = "";
+    };
+
     window.sendComment = async function() {
         const input = document.getElementById('commentInput');
         if (!input.value || !currentUser) return;
@@ -122,31 +182,45 @@
             userName: currentUser.displayName,
             userIcon: currentUser.photoURL,
             text: input.value,
+            parentId: currentReplyId || null,
             createdAt: serverTimestamp()
         });
-        input.value = "";
+        resetReply();
     };
 
-    // コメント表示
     if (videoId) {
         onSnapshot(query(collection(db, "comments"), where("videoId", "==", videoId)), (snapshot) => {
             const list = document.getElementById('commentList');
+            const all = [];
+            snapshot.forEach(doc => all.push({id: doc.id, ...doc.data()}));
             list.innerHTML = "";
-            snapshot.forEach(doc => {
-                const data = doc.data();
+            
+            all.filter(c => !c.parentId).forEach(parent => {
                 const div = document.createElement('div');
                 div.className = 'comment-item';
                 div.innerHTML = `
-                    <img src="${data.userIcon || ''}" class="user-icon">
+                    <img src="${parent.userIcon}" class="user-icon-small">
                     <div class="comment-right">
-                        <div class="user-name">${data.userName}</div>
-                        <div class="comment-text">${data.text}</div>
+                        <div class="c-user-name">${parent.userName}</div>
+                        <div class="comment-text">${parent.text}</div>
+                        <button class="reply-btn" onclick="setReply('${parent.id}', '${parent.text}')">返信</button>
                     </div>`;
                 list.appendChild(div);
+
+                all.filter(c => c.parentId === parent.id).forEach(reply => {
+                    const rDiv = document.createElement('div');
+                    rDiv.className = 'comment-item reply-item';
+                    rDiv.innerHTML = `
+                        <img src="${reply.userIcon}" class="user-icon-small">
+                        <div class="comment-right">
+                            <div class="c-user-name">${reply.userName}</div>
+                            <div class="comment-text">${reply.text}</div>
+                        </div>`;
+                    list.appendChild(rDiv);
+                });
             });
         });
     }
-    loadVideoData();
 </script>
 </body>
 </html>
