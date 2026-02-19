@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>管理者ID確認ツール</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 50px; background: #f4f4f4; }
+        .card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); display: inline-block; max-width: 500px; width: 100%; }
+        .uid-box { background: #eee; padding: 15px; font-family: monospace; font-size: 1.2rem; word-break: break-all; margin: 20px 0; border: 1px solid #ccc; }
+        button { background: #ff0000; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 1rem; }
+        .copy-btn { background: #007bff; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>管理者ID確認</h2>
+    <p>下のボタンでログインすると、あなたのUIDが表示されます。</p>
+    <button id="loginBtn">Googleでログイン</button>
+    
+    <div id="result" style="display:none;">
+        <div class="uid-box" id="uidText"></div>
+        <button class="copy-btn" onclick="copyId()">このIDをコピーする</button>
+        <p style="color: green; font-size: 14px; margin-top: 10px; display: none;" id="copyMsg">コピーしました！</p>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o",
+        authDomain: "mytube-f4544.firebaseapp.com",
+        projectId: "mytube-f4544",
+        storageBucket: "mytube-f4544.firebasestorage.app",
+        messagingSenderId: "655444283107",
+        appId: "1:655444283107:web:04f9173faf2d951790ffd6"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const provider = new GoogleAuthProvider();
+
+    document.getElementById('loginBtn').onclick = () => signInWithPopup(auth, provider);
+
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            document.getElementById('result').style.display = 'block';
+            document.getElementById('uidText').innerText = user.uid;
+            document.getElementById('loginBtn').style.display = 'none';
+        }
+    });
+
+    window.copyId = () => {
+        const text = document.getElementById('uidText').innerText;
+        navigator.clipboard.writeText(text).then(() => {
+            document.getElementById('copyMsg').style.display = 'block';
+        });
+    };
+</script>
+</body>
+</html>
