@@ -2,33 +2,97 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MyTube - ログイン</title>
-    <style>body{font-family:sans-serif; display:flex; justify-content:center; align-items:center; height:100vh; margin:0; background:#fff;}</style>
+    <style>
+        body { 
+            font-family: "Roboto", sans-serif; 
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            height: 100vh; margin: 0; background: #ffffff; color: #0f0f0f;
+        }
+        .login-box { text-align: center; padding: 40px; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .logo { color: #ff0000; font-size: 28px; font-weight: bold; margin-bottom: 20px; text-decoration: none; display: block; }
+        .login-btn { 
+            background: #065fd4; color: white; border: none; padding: 12px 24px; 
+            border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 16px;
+            transition: background 0.2s;
+        }
+        .login-btn:hover { background: #0056b3; }
+        .status { margin-top: 15px; font-size: 12px; color: #606060; }
+    </style>
 </head>
 <body>
-    <button onclick="login()" style="padding:10px 20px; font-weight:bold; cursor:pointer;">Googleでログイン</button>
+
+<div class="login-box">
+    <a href="index.html" class="logo">MyTube</a>
+    <p>動画を投稿したり、コメントするには<br>ログインが必要です。</p>
+    <button class="login-btn" id="googleLoginBtn">Googleでログイン</button>
+    <div id="statusMsg" class="status"></div>
+</div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getAuth, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
     import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    const firebaseConfig = { /* 上記と同じConfigをここに貼る */ };
+    // ★重要: ここにお使いのFirebase Configを必ず貼り付けてください
+    const firebaseConfig = {
+        apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o",
+        authDomain: "mytube-f4544.firebaseapp.com",
+        projectId: "mytube-f4544",
+        storageBucket: "mytube-f4544.firebasestorage.app",
+        messagingSenderId: "655444283107",
+        appId: "1:655444283107:web:04f9173faf2d951790ffd6"
+    };
+
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
+    const provider = new GoogleAuthProvider();
 
-    window.login = () => {
-        const provider = new GoogleAuthProvider();
-        signInWithPopup(auth, provider).then(async (result) => {
+    // ログインボタンのクリックイベント
+    document.getElementById('googleLoginBtn').onclick = async () => {
+        const msg = document.getElementById('statusMsg');
+        msg.innerText = "認証ウィンドウを開いています...";
+
+        try {
+            // ポップアップでサインイン
+            const result = await signInWithPopup(auth, provider);
             const user = result.user;
+            
+            msg.innerText = "ユーザー情報を確認中...";
+
+            // Firestoreにユーザー情報を保存（未登録の場合のみ）
             const uRef = doc(db, "users", user.uid);
             const uSnap = await getDoc(uRef);
+            
             if (!uSnap.exists()) {
-                await setDoc(uRef, { name: user.displayName, icon: user.photoURL, subCount: 0 });
+                await setDoc(uRef, {
+                    name: user.displayName || "名無しのユーザー",
+                    icon: user.photoURL || "",
+                    subCount: 0,
+                    email: user.email
+                });
             }
-            location.href = 'index.html';
-        }).catch(err => alert("失敗: " + err.message));
+
+            msg.innerText = "ログイン成功！移動します...";
+            setTimeout(() => {
+                location.href = 'index.html';
+            }, 500);
+
+        } catch (error) {
+            console.error("Login Error:", error);
+            msg.innerText = "エラーが発生しました。";
+            
+            // エラーの種類に応じてアラートを出す
+            if (error.code === 'auth/popup-blocked') {
+                alert("ポップアップがブロックされました。ブラウザの設定で許可してください。");
+            } else if (error.code === 'auth/cancelled-by-user') {
+                msg.innerText = "ログインがキャンセルされました。";
+            } else {
+                alert("ログイン失敗: " + error.message);
+            }
+        }
     };
 </script>
 </body>
