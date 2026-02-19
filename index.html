@@ -2,62 +2,61 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>MyTube - ホーム</title>
     <style>
-        :root { --primary-color: #ff0000; --bg-color: #f9f9f9; }
-        body { font-family: sans-serif; background: var(--bg-color); margin: 0; padding: 20px; }
-        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
-        .user-area { display: flex; align-items: center; gap: 10px; }
-        .user-icon { width: 40px; height: 40px; border-radius: 50%; cursor: pointer; object-fit: cover; border: 2px solid #ddd; }
-        .btn-upload { text-decoration: none; background: var(--primary-color); color: white; padding: 8px 16px; border-radius: 20px; font-weight: bold; font-size: 14px; }
+        :root { --yt-bg: #ffffff; --yt-text: #0f0f0f; --yt-gray: #606060; --yt-card: #f2f2f2; }
+        body { font-family: "Roboto", Arial, sans-serif; margin: 0; background: var(--yt-bg); color: var(--yt-text); -webkit-tap-highlight-color: transparent; }
         
-        #videoList { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
-        .video-card { background: white; border-radius: 12px; overflow: hidden; position: relative; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        video { width: 100%; aspect-ratio: 16 / 9; background: #000; cursor: pointer; object-fit: cover; }
-        .video-info { padding: 12px; }
-        .video-title { font-weight: bold; color: #0f0f0f; }
+        header { 
+            display: flex; align-items: center; justify-content: space-between; 
+            padding: 10px 15px; background: var(--yt-bg); border-bottom: 1px solid #ddd; 
+            position: sticky; top: 0; z-index: 100; 
+        }
+        .logo { color: #ff0000; font-size: 20px; font-weight: bold; cursor: pointer; text-decoration: none; }
+        .header-btns { display: flex; gap: 10px; }
+        .icon-btn { background: none; border: none; font-size: 20px; cursor: pointer; padding: 5px; }
 
-        .delete-btn { position: absolute; top: 10px; right: 10px; background: rgba(255,0,0,0.9); color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; display: none; z-index: 10; font-weight: bold; }
-        .video-card:hover .delete-btn { display: block; }
+        #videoGrid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); 
+            gap: 20px; padding: 15px; max-width: 1400px; margin: 0 auto; 
+        }
+        @media (max-width: 600px) { 
+            #videoGrid { grid-template-columns: 1fr; padding: 0; gap: 10px; } 
+            .v-card { border-radius: 0; }
+            .v-thumb-container { border-radius: 0; }
+        }
 
-        /* UID表示用の特別なスタイル */
-        #adminPanel { display: none; background: #333; color: #fff; padding: 15px; border-radius: 10px; margin-bottom: 20px; font-family: monospace; border: 2px solid gold; }
+        .v-card { cursor: pointer; transition: 0.2s; }
+        .v-thumb-container { 
+            width: 100%; aspect-ratio: 16/9; border-radius: 12px; 
+            background: #eee; overflow: hidden; position: relative; 
+        }
+        .v-thumb { width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.3s; }
         
-        .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
-        .modal-content { background: white; margin: 15% auto; padding: 25px; border-radius: 15px; width: 300px; text-align: center; }
-        .save-btn { background: #00b300; color: white; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; }
+        .v-info { display: flex; gap: 12px; padding: 12px; }
+        .c-icon-s { width: 36px; height: 36px; border-radius: 50%; background: #eee; flex-shrink: 0; object-fit: cover; }
+        .v-text { overflow: hidden; }
+        .v-title { font-weight: bold; font-size: 16px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 4px; }
+        .v-meta { color: var(--yt-gray); font-size: 13px; }
     </style>
 </head>
 <body>
 
-<div id="adminPanel">
-    <div style="font-weight:bold; color:gold; margin-bottom:5px;">👑 ADMIN MODE</div>
-    <div id="uidDisplay">UID: 取得中...</div>
-    <div style="font-size:12px; margin-top:5px; color:#ccc;">↑このIDをコピーして、コードの ADMIN_UID に貼り付けてください。</div>
-</div>
-
 <header>
-    <h1 style="color:red; cursor:pointer;" onclick="location.href='index.html'">MyTube</h1>
-    <div class="user-area" id="userArea"><button id="loginBtn">ログイン</button></div>
+    <a href="index.html" class="logo">MyTube</a>
+    <div class="header-btns">
+        <button class="icon-btn" onclick="location.href='upload.html'">📤</button>
+        <button class="icon-btn" onclick="location.href='profile.html'">👤</button>
+    </div>
 </header>
 
-<div id="videoList">動画を読み込み中...</div>
-
-<div id="profileModal" class="modal">
-    <div class="modal-content">
-        <h3>プロフィール変更</h3>
-        <input type="text" id="editName" style="width:90%; padding:10px; margin-bottom:10px;" placeholder="名前">
-        <input type="text" id="editIcon" style="width:90%; padding:10px; margin-bottom:10px;" placeholder="アイコンURL">
-        <button class="save-btn" id="saveProfileBtn">保存</button>
-        <button onclick="document.getElementById('profileModal').style.display='none'">閉じる</button>
-    </div>
-</div>
+<div id="videoGrid"></div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, query, orderBy, onSnapshot, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-    import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getFirestore, collection, onSnapshot, doc, getDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o",
@@ -68,102 +67,91 @@
         appId: "1:655444283107:web:04f9173faf2d951790ffd6"
     };
 
-    // ★UIDが判明したらここに貼り付けてください（今は空でOK）★
-    const ADMIN_UID = "tP5CqCTRO3f2QQ8jdoj0ftY8kZU2"; 
-
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-    const auth = getAuth(app);
-    const provider = new GoogleAuthProvider();
-    let currentUser = null;
-    let isAdminMode = false;
 
-    // 隠しコマンド判定 (abbmytube)
-    let inputBuffer = "";
-    window.addEventListener('keydown', (e) => {
-        inputBuffer += e.key.toLowerCase();
-        if (inputBuffer.length > 9) inputBuffer = inputBuffer.substring(inputBuffer.length - 9);
+    // スマホ対応版サムネイル自動生成
+    async function generateThumb(url, imgElement) {
+        const video = document.createElement('video');
+        video.src = url;
+        video.preload = "metadata";
+        video.muted = true;
+        video.playsInline = true;
+        video.crossOrigin = "anonymous";
         
-        if (inputBuffer === "abbmytube") {
-            isAdminMode = !isAdminMode;
-            const panel = document.getElementById('adminPanel');
-            panel.style.display = isAdminMode ? 'block' : 'none';
-            
-            if (currentUser) {
-                document.getElementById('uidDisplay').innerText = "あなたのUID: " + currentUser.uid;
-            } else {
-                document.getElementById('uidDisplay').innerText = "ログインするとここにUIDが表示されます";
+        video.onloadedmetadata = () => {
+            video.currentTime = 1; 
+        };
+
+        video.onseeked = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 480; canvas.height = 270;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            imgElement.src = canvas.toDataURL('image/jpeg', 0.8);
+            imgElement.style.opacity = 1;
+            video.remove();
+        };
+
+        setTimeout(() => {
+            if (imgElement.style.opacity === "0") {
+                imgElement.src = "https://via.placeholder.com/480x270?text=MyTube";
+                imgElement.style.opacity = 1;
             }
-            
-            loadVideos(currentUser);
-            inputBuffer = "";
-        }
-    });
+        }, 6000);
 
-    onAuthStateChanged(auth, async (user) => {
-        currentUser = user;
-        const area = document.getElementById('userArea');
-        if (user) {
-            const userDoc = await getDoc(doc(db, "users", user.uid));
-            const userData = userDoc.exists() ? userDoc.data() : { name: user.displayName, icon: user.photoURL };
-            area.innerHTML = `
-                <a href="upload.html" class="btn-upload">投稿</a>
-                <img src="${userData.icon}" class="user-icon" id="userIconImg">
-                <button id="logoutBtn" style="font-size:10px;">ログアウト</button>
-            `;
-            document.getElementById('logoutBtn').onclick = () => signOut(auth);
-            document.getElementById('userIconImg').onclick = () => {
-                document.getElementById('editName').value = userData.name;
-                document.getElementById('editIcon').value = userData.icon;
-                document.getElementById('profileModal').style.display = 'block';
-            };
-        } else {
-            area.innerHTML = `<button id="loginBtnIn">ログイン</button>`;
-            document.getElementById('loginBtnIn').onclick = () => signInWithPopup(auth, provider);
-        }
-        loadVideos(user);
-    });
-
-    function loadVideos(user) {
-        const q = query(collection(db, "videos"), orderBy("createdAt", "desc"));
-        onSnapshot(q, (snapshot) => {
-            const list = document.getElementById('videoList');
-            list.innerHTML = "";
-            snapshot.forEach((vDoc) => {
-                const data = vDoc.data();
-                const card = document.createElement('div');
-                card.className = 'video-card';
-                
-                // 管理者IDが一致、かつモードがONの時
-                const isRealAdmin = user && user.uid === ADMIN_UID && isAdminMode;
-                const isOwner = user && data.userId === user.uid;
-                
-                card.innerHTML = `
-                    <video src="${data.url}" onclick="location.href='watch.html?id=${vDoc.id}'"></video>
-                    ${(isRealAdmin || isOwner) ? `<button class="delete-btn" onclick="deleteVideo('${vDoc.id}')">${isRealAdmin ? '管理者削除' : '削除'}</button>` : ''}
-                    <div class="video-info"><div class="video-title">${data.title}</div></div>
-                `;
-                list.appendChild(card);
-            });
-        });
+        video.load();
     }
 
-    window.deleteVideo = async (id) => {
-        if (confirm("消去しますか？")) {
-            await deleteDoc(doc(db, "videos", id));
-        }
-    };
+    // 動画一覧の取得
+    onSnapshot(collection(db, "videos"), async snap => {
+        const grid = document.getElementById('videoGrid');
+        grid.innerHTML = "";
 
-    document.getElementById('saveProfileBtn').onclick = async () => {
-        if(!currentUser) return;
-        await setDoc(doc(db, "users", currentUser.uid), {
-            name: document.getElementById('editName').value,
-            icon: document.getElementById('editIcon').value,
-            uid: currentUser.uid
-        }, { merge: true });
-        location.reload();
-    };
+        snap.forEach(async vDoc => {
+            const vd = vDoc.data();
+            const thumbId = `home-thumb-${vDoc.id}`;
+            const iconId = `home-icon-${vDoc.id}`;
+            
+            const card = document.createElement('div');
+            card.className = "v-card";
+            card.onclick = () => location.href = `watch.html?id=${vDoc.id}`;
+            
+            card.innerHTML = `
+                <div class="v-thumb-container">
+                    <img src="" class="v-thumb" id="${thumbId}">
+                </div>
+                <div class="v-info">
+                    <img src="" class="c-icon-s" id="${iconId}">
+                    <div class="v-text">
+                        <div class="v-title">${vd.title || '無題の動画'}</div>
+                        <div class="v-meta">
+                            <span id="name-${vDoc.id}">読み込み中...</span><br>
+                            ${(vd.views || 0).toLocaleString()} 回視聴
+                        </div>
+                    </div>
+                </div>
+            `;
+            grid.appendChild(card);
+
+            // 投稿者情報の取得
+            const uSnap = await getDoc(doc(db, "users", vd.userId));
+            if(uSnap.exists()){
+                const ud = uSnap.data();
+                document.getElementById(`name-${vDoc.id}`).innerText = ud.name;
+                document.getElementById(iconId).src = ud.icon || "";
+            }
+
+            // サムネイル処理
+            const img = document.getElementById(thumbId);
+            if (vd.thumbnail) {
+                img.src = vd.thumbnail;
+                img.style.opacity = 1;
+            } else {
+                generateThumb(vd.url, img);
+            }
+        });
+    });
 </script>
 </body>
 </html>
-
