@@ -1,49 +1,138 @@
-<style>
-    /* ...これまでのスタイルは維持... */
-    .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
-    .modal-content { background: white; margin: 10% auto; padding: 20px; border-radius: 15px; width: 300px; text-align: center; }
-    .modal-content input { width: 90%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; }
-    .save-btn { background: #00b300; color: white; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; }
-</style>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyTube - ホーム</title>
+    <style>
+        :root { --primary-color: #ff0000; --bg-color: #f9f9f9; }
+        body { font-family: sans-serif; background: var(--bg-color); margin: 0; padding: 20px; }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .user-area { display: flex; align-items: center; gap: 10px; }
+        .user-icon { width: 40px; height: 40px; border-radius: 50%; cursor: pointer; object-fit: cover; border: 2px solid #ddd; }
+        .btn-upload { text-decoration: none; background: var(--primary-color); color: white; padding: 8px 16px; border-radius: 20px; font-weight: bold; font-size: 14px; }
+        
+        #videoList { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+        .video-card { background: white; border-radius: 12px; overflow: hidden; position: relative; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        video { width: 100%; aspect-ratio: 16 / 9; background: #000; cursor: pointer; object-fit: cover; }
+        .video-info { padding: 12px; }
+        .video-title { font-weight: bold; margin-bottom: 5px; color: #0f0f0f; }
+        .delete-btn { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; display: none; z-index: 10; }
+        .video-card:hover .delete-btn { display: block; }
+
+        /* プロフィール編集モーダル */
+        .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
+        .modal-content { background: white; margin: 15% auto; padding: 25px; border-radius: 15px; width: 300px; text-align: center; }
+        .modal-content input { width: 90%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; }
+        .save-btn { background: #00b300; color: white; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1 style="color:red; cursor:pointer;" onclick="location.href='index.html'">MyTube</h1>
+    <div class="user-area" id="userArea">
+        <button id="loginBtn">ログイン</button>
+    </div>
+</header>
+
+<div id="videoList">動画を読み込み中...</div>
 
 <div id="profileModal" class="modal">
     <div class="modal-content">
         <h3>プロフィール変更</h3>
-        <input type="text" id="editName" placeholder="新しい名前">
-        <input type="text" id="editIcon" placeholder="アイコン画像URL (任意)">
+        <input type="text" id="editName" placeholder="表示名">
+        <input type="text" id="editIcon" placeholder="アイコン画像URL">
         <button class="save-btn" onclick="saveProfile()">保存する</button>
         <button onclick="document.getElementById('profileModal').style.display='none'" style="background:none; border:none; color:gray; cursor:pointer; margin-top:10px;">キャンセル</button>
     </div>
 </div>
 
 <script type="module">
-    // ...Firebase設定は維持...
-    import { getFirestore, doc, getDoc, setDoc, collection, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, query, orderBy, onSnapshot, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-    const auth = getAuth();
-    const db = getFirestore();
+    const firebaseConfig = {
+        apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o",
+        authDomain: "mytube-f4544.firebaseapp.com",
+        projectId: "mytube-f4544",
+        storageBucket: "mytube-f4544.firebasestorage.app",
+        messagingSenderId: "655444283107",
+        appId: "1:655444283107:web:04f9173faf2d951790ffd6"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    const provider = new GoogleAuthProvider();
+
     let currentUser = null;
 
+    // ログイン処理
+    const doLogin = () => signInWithPopup(auth, provider);
+    window.logout = () => signOut(auth);
+
+    // ログイン状態の監視
     onAuthStateChanged(auth, async (user) => {
         currentUser = user;
         const area = document.getElementById('userArea');
+        
         if (user) {
-            // Firestoreから最新のプロフィールを取得
+            // Firestoreからプロフィール取得
             const userDoc = await getDoc(doc(db, "users", user.uid));
             let userData = userDoc.exists() ? userDoc.data() : { name: user.displayName, icon: user.photoURL };
 
             area.innerHTML = `
                 <a href="upload.html" class="btn-upload">投稿</a>
-                <img src="${userData.icon}" class="user-icon" onclick="openProfileModal('${userData.name}', '${userData.icon}')" style="cursor:pointer" title="プロフィールを変更">
-                <button onclick="logout()" style="background:none; border:none; cursor:pointer; font-size:12px;">ログアウト</button>
+                <img src="${userData.icon}" class="user-icon" id="userIconImg" title="クリックでプロフィール編集">
+                <button onclick="logout()" style="background:none; border:none; color:#666; cursor:pointer; font-size:12px;">ログアウト</button>
             `;
+            
+            document.getElementById('userIconImg').onclick = () => openProfileModal(userData.name, userData.icon);
         } else {
-            area.innerHTML = `<button onclick="login()">ログイン</button>`;
+            area.innerHTML = `<button id="loginBtnInner">ログイン</button>`;
+            const btn = document.getElementById('loginBtnInner');
+            if(btn) btn.onclick = doLogin;
         }
         loadVideos(user);
     });
 
+    const loginBtn = document.getElementById('loginBtn');
+    if(loginBtn) loginBtn.onclick = doLogin;
+
+    // 動画読み込み
+    function loadVideos(user) {
+        const q = query(collection(db, "videos"), orderBy("createdAt", "desc"));
+        onSnapshot(q, (snapshot) => {
+            const list = document.getElementById('videoList');
+            list.innerHTML = "";
+            snapshot.forEach((vDoc) => {
+                const data = vDoc.data();
+                const card = document.createElement('div');
+                card.className = 'video-card';
+                const isOwner = user && data.userId === user.uid;
+                
+                card.innerHTML = `
+                    <video src="${data.url}" onclick="location.href='watch.html?id=${vDoc.id}'"></video>
+                    ${isOwner ? `<button class="delete-btn" onclick="deleteVideo('${vDoc.id}')">削除</button>` : ''}
+                    <div class="video-info">
+                        <div class="video-title">${data.title}</div>
+                    </div>
+                `;
+                list.appendChild(card);
+            });
+        });
+    }
+
+    // 削除機能
+    window.deleteVideo = async (id) => {
+        if (confirm("動画を消去しますか？")) {
+            await deleteDoc(doc(db, "videos", id));
+        }
+    };
+
+    // プロフィール編集
     window.openProfileModal = (name, icon) => {
         document.getElementById('editName').value = name;
         document.getElementById('editIcon').value = icon;
@@ -62,7 +151,9 @@
         }, { merge: true });
 
         alert("プロフィールを更新しました！");
-        location.reload(); // 反映のために再読み込み
+        location.reload();
     };
-    // ...loadVideos関数などは維持...
 </script>
+
+</body>
+</html>
