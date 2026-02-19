@@ -11,11 +11,19 @@
         header { 
             display: flex; align-items: center; justify-content: space-between; 
             padding: 10px 15px; background: var(--yt-bg); border-bottom: 1px solid #ddd; 
-            position: sticky; top: 0; z-index: 100; 
+            position: sticky; top: 0; z-index: 100; height: 40px;
         }
         .logo { color: #ff0000; font-size: 20px; font-weight: bold; cursor: pointer; text-decoration: none; }
-        .header-btns { display: flex; gap: 10px; }
+        
+        .header-btns { display: flex; align-items: center; gap: 12px; }
         .icon-btn { background: none; border: none; font-size: 20px; cursor: pointer; padding: 5px; }
+        
+        /* ログイン・ログアウト用スタイル */
+        .auth-btn { 
+            background: none; border: 1px solid #065fd4; color: #065fd4; 
+            padding: 6px 12px; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 14px;
+        }
+        .user-chip { width: 32px; height: 32px; border-radius: 50%; cursor: pointer; object-fit: cover; background: #eee; }
 
         #videoGrid { 
             display: grid; 
@@ -46,9 +54,8 @@
 
 <header>
     <a href="index.html" class="logo">MyTube</a>
-    <div class="header-btns">
-        <button class="icon-btn" onclick="location.href='upload.html'">📤</button>
-        <button class="icon-btn" onclick="location.href='profile.html'">👤</button>
+    <div class="header-btns" id="authContainer">
+        <button class="auth-btn" onclick="location.href='login.html'">ログイン</button>
     </div>
 </header>
 
@@ -56,7 +63,8 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, onSnapshot, doc, getDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, onSnapshot, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o",
@@ -69,97 +77,84 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+    const auth = getAuth(app);
 
-    // ★修正版：サムネイル生成の確実性を向上
+    // ログイン状態の監視とボタンの切り替え
+    onAuthStateChanged(auth, async (user) => {
+        const container = document.getElementById('authContainer');
+        if (user) {
+            const uSnap = await getDoc(doc(db, "users", user.uid));
+            const userData = uSnap.data();
+            container.innerHTML = `
+                <button class="icon-btn" onclick="location.href='upload.html'">📤</button>
+                <img src="${userData?.icon || ''}" class="user-chip" onclick="if(confirm('ログアウトしますか？')) window.handleSignOut()" title="ログアウト">
+            `;
+        } else {
+            container.innerHTML = `<button class="auth-btn" onclick="location.href='login.html'">ログイン</button>`;
+        }
+    });
+
+    window.handleSignOut = () => {
+        signOut(auth).then(() => {
+            alert("ログアウトしました");
+            location.reload();
+        });
+    };
+
+    // サムネイル生成関数 (前回同様)
     async function generateThumb(url, imgElement) {
         const video = document.createElement('video');
-        video.src = url;
-        video.preload = "auto"; // メタデータだけでなくデータを読み込む
-        video.muted = true;
-        video.playsInline = true;
-        video.crossOrigin = "anonymous"; 
-        
-        // スマホ対策：読み込みが完了してからシークする
-        video.addEventListener('loadeddata', () => {
-            video.currentTime = 1.0; 
-        });
-
+        video.src = url; video.preload = "auto"; video.muted = true; video.playsInline = true; video.crossOrigin = "anonymous"; 
+        video.addEventListener('loadeddata', () => { video.currentTime = 1.0; });
         video.addEventListener('seeked', () => {
             try {
                 const canvas = document.createElement('canvas');
-                canvas.width = 480; 
-                canvas.height = 270;
+                canvas.width = 480; canvas.height = 270;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                
-                // 描画された内容が真っ黒（ピクセルデータが空）でないかチェック
-                const pixelData = ctx.getImageData(100, 100, 1, 1).data;
-                if (pixelData[3] === 0) throw new Error("Canvas empty");
-
                 imgElement.src = canvas.toDataURL('image/jpeg', 0.8);
                 imgElement.style.opacity = 1;
                 video.remove();
-            } catch (e) {
-                // 失敗した場合は少し遅れて再試行
-                setTimeout(() => { video.currentTime = 1.5; }, 500);
-            }
+            } catch (e) { setTimeout(() => { video.currentTime = 1.5; }, 500); }
         });
-
-        // タイムアウト
-        setTimeout(() => {
-            if (imgElement.style.opacity === "0") {
-                imgElement.src = "https://via.placeholder.com/480x270?text=Video+Preview";
-                imgElement.style.opacity = 1;
-            }
-        }, 8000);
-
+        setTimeout(() => { if (imgElement.style.opacity === "0") { imgElement.src = "https://via.placeholder.com/480x270?text=MyTube"; imgElement.style.opacity = 1; } }, 8000);
         video.load();
     }
 
-    onSnapshot(collection(db, "videos"), async snap => {
+    // 動画一覧の取得
+    onSnapshot(collection(db, "videos"), snap => {
         const grid = document.getElementById('videoGrid');
         grid.innerHTML = "";
-
         snap.forEach(async vDoc => {
             const vd = vDoc.data();
             const thumbId = `home-thumb-${vDoc.id}`;
             const iconId = `home-icon-${vDoc.id}`;
-            
             const card = document.createElement('div');
             card.className = "v-card";
             card.onclick = () => location.href = `watch.html?id=${vDoc.id}`;
-            
             card.innerHTML = `
-                <div class="v-thumb-container">
-                    <img src="" class="v-thumb" id="${thumbId}">
-                </div>
+                <div class="v-thumb-container"><img src="" class="v-thumb" id="${thumbId}"></div>
                 <div class="v-info">
                     <img src="" class="c-icon-s" id="${iconId}">
                     <div class="v-text">
                         <div class="v-title">${vd.title || '無題の動画'}</div>
-                        <div class="v-meta">
-                            <span id="name-${vDoc.id}">読み込み中...</span><br>
-                            ${(vd.views || 0).toLocaleString()} 回視聴
-                        </div>
+                        <div class="v-meta"><span id="name-${vDoc.id}">...</span> • ${(vd.views || 0).toLocaleString()} 回視聴</div>
                     </div>
                 </div>
             `;
             grid.appendChild(card);
 
-            const uSnap = await getDoc(doc(db, "users", vd.userId));
-            if(uSnap.exists()){
-                const ud = uSnap.data();
-                document.getElementById(`name-${vDoc.id}`).innerText = ud.name;
-                document.getElementById(iconId).src = ud.icon || "";
-            }
+            getDoc(doc(db, "users", vd.userId)).then(uSnap => {
+                if(uSnap.exists()){
+                    const ud = uSnap.data();
+                    document.getElementById(`name-${vDoc.id}`).innerText = ud.name;
+                    document.getElementById(iconId).src = ud.icon || "";
+                }
+            });
 
             const img = document.getElementById(thumbId);
-            if (vd.thumbnail && vd.thumbnail !== "") {
-                img.src = vd.thumbnail;
-                img.style.opacity = 1;
-            } else {
-                generateThumb(vd.url, img);
-            }
+            if (vd.thumbnail) { img.src = vd.thumbnail; img.style.opacity = 1; }
+            else { generateThumb(vd.url, img); }
         });
     });
 </script>
