@@ -7,15 +7,15 @@
     <style>
         :root { --yt-bg: #ffffff; --yt-text: #0f0f0f; --yt-gray: #606060; }
         body { font-family: sans-serif; background: var(--yt-bg); color: var(--yt-text); margin: 0; }
-        header { padding: 10px 20px; background: var(--yt-bg); border-bottom: 1px solid #ddd; }
-        .logo { color: red; font-size: 24px; font-weight: bold; text-decoration: none; }
-        .channel-header { padding: 40px 20px; max-width: 1200px; margin: 0 auto; display: flex; align-items: center; gap: 24px; }
-        .c-icon-l { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 1px solid #eee; }
-        #videoGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; padding: 20px; max-width: 1200px; margin: 0 auto; }
+        header { padding: 10px 15px; background: var(--yt-bg); border-bottom: 1px solid #ddd; }
+        .logo { color: red; font-size: 22px; font-weight: bold; text-decoration: none; }
+        .channel-header { padding: 30px 15px; display: flex; align-items: center; gap: 15px; border-bottom: 1px solid #eee; }
+        .c-icon-l { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 1px solid #eee; }
+        #videoGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; padding: 15px; }
         .v-card { cursor: pointer; }
-        .v-thumb-container { width: 100%; aspect-ratio: 16/9; border-radius: 12px; background: #eee; overflow: hidden; position: relative; }
-        .v-thumb { width: 100%; height: 100%; object-fit: cover; }
-        .v-title { font-weight: bold; font-size: 14px; margin-top: 10px; line-height: 1.4; color: #0f0f0f; }
+        .v-thumb-container { width: 100%; aspect-ratio: 16/9; border-radius: 10px; background: #eee; overflow: hidden; position: relative; }
+        .v-thumb { width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.3s; }
+        .v-title { font-weight: bold; font-size: 13px; margin-top: 8px; line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
     </style>
 </head>
 <body>
@@ -23,8 +23,8 @@
 <div class="channel-header">
     <img src="" class="c-icon-l" id="hIcon">
     <div>
-        <h1 id="hName" style="margin:0; font-size:32px;">読み込み中...</h1>
-        <div id="hSubs" style="color:var(--yt-gray); margin-top:8px;">登録者 0人</div>
+        <h1 id="hName" style="margin:0; font-size:22px;">読み込み中...</h1>
+        <div id="hSubs" style="color:var(--yt-gray); font-size:12px; margin-top:4px;">登録者 0人</div>
     </div>
 </div>
 <div id="videoGrid"></div>
@@ -46,19 +46,38 @@
     const db = getFirestore(app);
     const uid = new URLSearchParams(window.location.search).get('uid');
 
-    // 動画URLからサムネイルを生成する関数
+    // スマホ対応版サムネイル生成
     async function generateThumb(url, imgElement) {
         const video = document.createElement('video');
         video.src = url;
-        video.crossOrigin = "Anonymous"; // CORS対策
-        video.currentTime = 1; // 1秒目のフレーム
-        video.onloadeddata = () => {
+        video.preload = "metadata";
+        video.muted = true;
+        video.playsInline = true;
+        video.crossOrigin = "anonymous";
+        
+        video.onloadedmetadata = () => {
+            video.currentTime = 0.5; // スマホでの確実性を上げるため0.5秒付近を指定
+        };
+
+        video.onseeked = () => {
             const canvas = document.createElement('canvas');
-            canvas.width = 640; canvas.height = 360;
+            canvas.width = 480; canvas.height = 270;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            imgElement.src = canvas.toDataURL('image/jpeg');
+            imgElement.src = canvas.toDataURL('image/jpeg', 0.7);
+            imgElement.style.opacity = 1;
+            video.remove();
         };
+
+        // 5秒経っても生成できない場合のタイムアウト処理
+        setTimeout(() => {
+            if (imgElement.style.opacity === "0") {
+                imgElement.src = "https://via.placeholder.com/480x270?text=No+Preview";
+                imgElement.style.opacity = 1;
+            }
+        }, 5000);
+
+        video.load();
     }
 
     if (uid) {
@@ -78,7 +97,6 @@
                 const vd = vDoc.data();
                 const div = document.createElement('div'); div.className = "v-card";
                 div.onclick = () => location.href = `watch.html?id=${vDoc.id}`;
-                
                 const thumbId = `thumb-${vDoc.id}`;
                 div.innerHTML = `
                     <div class="v-thumb-container">
@@ -87,10 +105,10 @@
                     <div class="v-title">${vd.title}</div>
                 `;
                 grid.appendChild(div);
-
                 const img = document.getElementById(thumbId);
                 if (vd.thumbnail) {
                     img.src = vd.thumbnail;
+                    img.style.opacity = 1;
                 } else {
                     generateThumb(vd.url, img);
                 }
