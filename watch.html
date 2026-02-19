@@ -3,71 +3,64 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MyTube - 再生</title>
+    <title>MyTube - 再生 (Admin)</title>
     <style>
         body { font-family: sans-serif; margin: 0; background: #f9f9f9; padding: 20px; }
         .main-container { max-width: 900px; margin: 0 auto; }
         video { width: 100%; background: #000; border-radius: 12px; aspect-ratio: 16/9; }
-        h2 { margin: 15px 0 5px 0; }
         
-        .channel-info { display: flex; align-items: center; gap: 12px; margin: 15px 0; padding-bottom: 15px; border-bottom: 1px solid #ddd; }
-        .channel-icon { width: 40px; height: 40px; border-radius: 50%; cursor: pointer; background: #eee; object-fit: cover; }
+        /* 管理者パネルのスタイル */
+        #adminEditPanel { display: none; background: #222; color: #fff; padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 2px solid gold; }
+        #adminEditPanel input { width: 80px; padding: 5px; margin: 5px; border-radius: 4px; border: none; }
+        .admin-btn { background: gold; color: black; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+
+        .video-info { margin-top: 15px; }
+        .stats-row { color: #606060; font-size: 14px; margin: 8px 0; }
+        
+        .channel-info { display: flex; align-items: center; gap: 12px; padding: 15px 0; border-bottom: 1px solid #ddd; border-top: 1px solid #ddd; margin-top: 15px; }
+        .channel-icon { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; }
         .channel-details { flex-grow: 1; }
-        .author-name { font-weight: bold; cursor: pointer; display: block; }
+        .author-name { font-weight: bold; display: block; }
         .sub-btn { background: #0f0f0f; color: white; border-radius: 20px; padding: 8px 18px; border: none; font-weight: bold; cursor: pointer; }
-        .sub-btn.active { background: #eee; color: #606060; }
-
-        .auth-section { text-align: right; margin-bottom: 10px; }
-        .user-profile { display: flex; align-items: center; justify-content: flex-end; gap: 10px; font-size: 14px; }
-        .user-icon-small { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
-
-        .comment-section { background: white; padding: 20px; border-radius: 12px; margin-top: 20px; }
-        .input-area { margin-bottom: 20px; padding: 15px; border: 1px solid #eee; border-radius: 8px; }
-        #commentInput { width: 100%; padding: 10px; border: none; border-bottom: 1px solid #ddd; outline: none; margin-bottom: 10px; }
-        #replyTarget { display: none; background: #f0f0f0; padding: 5px 10px; font-size: 12px; border-radius: 4px; margin-bottom: 10px; }
-
-        .comment-item { border-bottom: 1px solid #eee; padding: 15px 0; display: flex; gap: 12px; }
-        .reply-item { margin-left: 40px; background: #fafafa; border-bottom: none; border-radius: 8px; padding: 10px; }
-        .comment-right { flex-grow: 1; }
-        .c-user-name { font-weight: bold; font-size: 13px; margin-bottom: 4px; }
-        .comment-text { font-size: 14px; margin-bottom: 5px; }
-        .reply-btn { font-size: 12px; color: #606060; background: none; border: none; cursor: pointer; padding: 0; }
     </style>
 </head>
 <body>
+
 <div class="main-container">
-    <div class="auth-section" id="authSection">
-        <button onclick="login()">ログイン</button>
+    <div id="adminEditPanel">
+        <h3 style="color:gold; margin-top:0;">👑 管理者用 数値編集</h3>
+        <div>
+            再生回数: <input type="number" id="editViews">
+            高評価数: <input type="number" id="editLikes">
+            登録者数: <input type="number" id="editSubs">
+            <button class="admin-btn" onclick="updateVideoStats()">数値を保存する</button>
+        </div>
+        <div id="myUidDisplay" style="font-size: 11px; margin-top: 10px; color: #aaa;"></div>
     </div>
 
-    <video id="player" controls autoplay></video>
-    <h2 id="videoTitle">読み込み中...</h2>
+    <video id="player" controls></video>
+    <div class="video-info">
+        <h2 id="videoTitle" style="margin:10px 0;">読み込み中...</h2>
+        <div class="stats-row">
+            再生回数 <span id="viewCountDisplay">0</span>回 ・ 
+            高評価 <span id="likeCountDisplay">0</span>
+        </div>
+    </div>
 
-    <div class="channel-info" id="channelArea">
+    <div class="channel-info">
         <img src="" class="channel-icon" id="authorIcon">
         <div class="channel-details">
             <span class="author-name" id="authorName">読み込み中...</span>
+            <span id="subCountDisplay" style="font-size:12px; color:#606060;">登録者 0人</span>
         </div>
-        <button class="sub-btn" id="subscribeBtn" style="display:none;">チャンネル登録</button>
-    </div>
-
-    <div class="comment-section">
-        <h3>コメント</h3>
-        <div id="loginMsg">コメントするにはログインが必要です</div>
-        <div class="input-area" id="inputArea" style="display:none;">
-            <div id="replyTarget"></div>
-            <input type="text" id="commentInput" placeholder="コメントを入力...">
-            <button onclick="sendComment()">投稿</button>
-            <button id="cancelReply" style="display:none; background:none; font-size:12px;" onclick="resetReply()">キャンセル</button>
-        </div>
-        <div id="commentList"></div>
+        <button class="sub-btn" id="subscribeBtn">チャンネル登録</button>
     </div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, collection, addDoc, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-    import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getFirestore, doc, getDoc, updateDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o",
@@ -78,172 +71,92 @@
         appId: "1:655444283107:web:04f9173faf2d951790ffd6"
     };
 
+    // ★判明したあなたのUIDをここに貼ってください★
+    const ADMIN_UID = "tP5CqCTRO3f2QQ8jdoj0ftY8kZU2"; 
+
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const auth = getAuth(app);
-    const provider = new GoogleAuthProvider();
 
     const params = new URLSearchParams(window.location.search);
     const videoId = params.get('id');
     let currentUser = null;
-    let currentReplyId = null;
+    let isAdminMode = false;
+    let targetAuthorId = "";
 
-    window.login = () => signInWithPopup(auth, provider);
-    window.logout = () => signOut(auth);
-
-    onAuthStateChanged(auth, async (user) => {
-        currentUser = user;
-        const authSection = document.getElementById('authSection');
-        const inputArea = document.getElementById('inputArea');
-        const loginMsg = document.getElementById('loginMsg');
-
-        if (user) {
-            // ログイン時にユーザー情報を保存/更新
-            await setDoc(doc(db, "users", user.uid), {
-                name: user.displayName,
-                icon: user.photoURL,
-                uid: user.uid
-            }, { merge: true });
-
-            authSection.innerHTML = `
-                <div class="user-profile">
-                    <img src="${user.photoURL}" class="user-icon-small">
-                    <span>${user.displayName}</span>
-                    <button onclick="logout()">ログアウト</button>
-                </div>`;
-            inputArea.style.display = 'block';
-            loginMsg.style.display = 'none';
-        } else {
-            authSection.innerHTML = `<button onclick="login()">ログイン</button>`;
-            inputArea.style.display = 'none';
-            loginMsg.style.display = 'block';
+    // 隠しコマンド判定 (abbmytube)
+    let inputBuffer = "";
+    window.addEventListener('keydown', (e) => {
+        inputBuffer += e.key.toLowerCase();
+        if (inputBuffer.length > 9) inputBuffer = inputBuffer.substring(1);
+        if (inputBuffer === "abbmytube") {
+            isAdminMode = !isAdminMode;
+            document.getElementById('adminEditPanel').style.display = isAdminMode ? 'block' : 'none';
+            if(currentUser) document.getElementById('myUidDisplay').innerText = "tP5CqCTRO3f2QQ8jdoj0ftY8kZU2: " + currentUser.uid;
+            alert("管理者モード: " + (isAdminMode ? "ON" : "OFF"));
         }
-        loadVideoData();
     });
 
-    async function loadVideoData() {
+    onAuthStateChanged(auth, (user) => {
+        currentUser = user;
+        loadVideo();
+    });
+
+    async function loadVideo() {
         if (!videoId) return;
-        const docSnap = await getDoc(doc(db, "videos", videoId));
-        if (docSnap.exists()) {
-            const data = docSnap.data();
+        
+        onSnapshot(doc(db, "videos", videoId), async (vDoc) => {
+            if (!vDoc.exists()) return;
+            const data = vDoc.data();
+            targetAuthorId = data.userId;
+            
             document.getElementById('player').src = data.url;
             document.getElementById('videoTitle').innerText = data.title;
-            
-            // 重要：動画データに情報がなくても、userIdから最新のプロフィールを検索する
-            const authorName = document.getElementById('authorName');
-            const authorIcon = document.getElementById('authorIcon');
-            
-            if (data.userId) {
-                const userDoc = await getDoc(doc(db, "users", data.userId));
-                if (userDoc.exists()) {
-                    const userData = userDoc.data();
-                    authorName.innerText = userData.name;
-                    authorIcon.src = userData.icon;
-                } else {
-                    authorName.innerText = data.userName || "不明なユーザー";
-                    authorIcon.src = data.userIcon || "";
-                }
-                setupSubscribe(data.userId);
-            } else {
-                authorName.innerText = "不明なユーザー";
-            }
+            document.getElementById('viewCountDisplay').innerText = data.views || 0;
+            document.getElementById('likeCountDisplay').innerText = data.likes || 0;
 
-            const goToChannel = () => location.href = `channel.html?uid=${data.userId}`;
-            authorName.onclick = goToChannel;
-            authorIcon.onclick = goToChannel;
-        }
+            // 管理者用入力欄に現在の値をセット
+            document.getElementById('editViews').value = data.views || 0;
+            document.getElementById('editLikes').value = data.likes || 0;
+
+            // 投稿者プロフィール
+            const userDoc = await getDoc(doc(db, "users", data.userId));
+            if (userDoc.exists()) {
+                const uData = userDoc.data();
+                document.getElementById('authorName').innerText = uData.name;
+                document.getElementById('authorIcon').src = uData.icon;
+                document.getElementById('subCountDisplay').innerText = `登録者 ${uData.subCount || 0}人`;
+                document.getElementById('editSubs').value = uData.subCount || 0;
+            }
+        });
     }
 
-    async function setupSubscribe(authorId) {
-        const subBtn = document.getElementById('subscribeBtn');
-        if (!currentUser || currentUser.uid === authorId) {
-            subBtn.style.display = 'none';
+    // 管理者による数値更新
+    window.updateVideoStats = async () => {
+        if (!currentUser || currentUser.uid !== ADMIN_UID) {
+            alert("権限がありません");
             return;
         }
-        subBtn.style.display = 'block';
-        const subRef = doc(db, "users", currentUser.uid, "subscriptions", authorId);
-        onSnapshot(subRef, (doc) => {
-            if (doc.exists()) {
-                subBtn.innerText = "登録済み";
-                subBtn.classList.add('active');
-                subBtn.onclick = () => deleteDoc(subRef);
-            } else {
-                subBtn.innerText = "チャンネル登録";
-                subBtn.classList.remove('active');
-                subBtn.onclick = () => setDoc(subRef, { authorId: authorId });
-            }
+
+        const newViews = parseInt(document.getElementById('editViews').value);
+        const newLikes = parseInt(document.getElementById('editLikes').value);
+        const newSubs = parseInt(document.getElementById('editSubs').value);
+
+        // 動画の再生数・いいね数を更新
+        await updateDoc(doc(db, "videos", videoId), {
+            views: newViews,
+            likes: newLikes
         });
-    }
 
-    window.setReply = (id, text) => {
-        currentReplyId = id;
-        const target = document.getElementById('replyTarget');
-        target.style.display = 'block';
-        target.innerText = `返信先: ${text.substring(0, 15)}...`;
-        document.getElementById('cancelReply').style.display = 'inline';
-        document.getElementById('commentInput').focus();
-    };
-
-    window.resetReply = () => {
-        currentReplyId = null;
-        document.getElementById('replyTarget').style.display = 'none';
-        document.getElementById('cancelReply').style.display = 'none';
-        document.getElementById('commentInput').value = "";
-    };
-
-    window.sendComment = async function() {
-        const input = document.getElementById('commentInput');
-        if (!input.value || !currentUser) return;
-
-        // 最新の自分のプロフィールを取得して投稿
-        const userDoc = await getDoc(doc(db, "users", currentUser.uid));
-        const userData = userDoc.data();
-
-        await addDoc(collection(db, "comments"), {
-            videoId: videoId,
-            userName: userData.name,
-            userIcon: userData.icon,
-            userId: currentUser.uid,
-            text: input.value,
-            parentId: currentReplyId || null,
-            createdAt: serverTimestamp()
-        });
-        resetReply();
-    };
-
-    if (videoId) {
-        onSnapshot(query(collection(db, "comments"), where("videoId", "==", videoId)), (snapshot) => {
-            const list = document.getElementById('commentList');
-            const all = [];
-            snapshot.forEach(doc => all.push({id: doc.id, ...doc.data()}));
-            list.innerHTML = "";
-            
-            all.filter(c => !c.parentId).forEach(parent => {
-                const div = document.createElement('div');
-                div.className = 'comment-item';
-                div.innerHTML = `
-                    <img src="${parent.userIcon}" class="user-icon-small">
-                    <div class="comment-right">
-                        <div class="c-user-name">${parent.userName}</div>
-                        <div class="comment-text">${parent.text}</div>
-                        <button class="reply-btn" onclick="setReply('${parent.id}', '${parent.text}')">返信</button>
-                    </div>`;
-                list.appendChild(div);
-
-                all.filter(c => c.parentId === parent.id).forEach(reply => {
-                    const rDiv = document.createElement('div');
-                    rDiv.className = 'comment-item reply-item';
-                    rDiv.innerHTML = `
-                        <img src="${reply.userIcon}" class="user-icon-small">
-                        <div class="comment-right">
-                            <div class="c-user-name">${reply.userName}</div>
-                            <div class="comment-text">${reply.text}</div>
-                        </div>`;
-                    list.appendChild(rDiv);
-                });
+        // 投稿者の登録者数を更新
+        if (targetAuthorId) {
+            await updateDoc(doc(db, "users", targetAuthorId), {
+                subCount: newSubs
             });
-        });
-    }
+        }
+
+        alert("数値を更新しました！");
+    };
 </script>
 </body>
 </html>
