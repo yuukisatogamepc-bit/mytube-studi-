@@ -5,16 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MyTube - チャンネル</title>
     <style>
-        :root { --yt-bg: #0f0f0f; --yt-text: #ffffff; --yt-gray: #aaaaaa; }
+        :root { --yt-bg: #ffffff; --yt-text: #0f0f0f; --yt-gray: #606060; }
         body { font-family: sans-serif; background: var(--yt-bg); color: var(--yt-text); margin: 0; }
-        header { padding: 10px 20px; background: var(--yt-bg); border-bottom: 1px solid #333; }
+        header { padding: 10px 20px; background: var(--yt-bg); border-bottom: 1px solid #ddd; }
         .logo { color: red; font-size: 24px; font-weight: bold; text-decoration: none; }
         .channel-header { padding: 40px 20px; max-width: 1200px; margin: 0 auto; display: flex; align-items: center; gap: 24px; }
-        .c-icon-l { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; }
+        .c-icon-l { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 1px solid #eee; }
         #videoGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; padding: 20px; max-width: 1200px; margin: 0 auto; }
         .v-card { cursor: pointer; }
-        .v-thumb { width: 100%; aspect-ratio: 16/9; border-radius: 12px; object-fit: cover; background: #222; }
-        .v-title { font-weight: bold; font-size: 14px; margin-top: 10px; line-height: 1.4; }
+        .v-thumb-container { width: 100%; aspect-ratio: 16/9; border-radius: 12px; background: #eee; overflow: hidden; position: relative; }
+        .v-thumb { width: 100%; height: 100%; object-fit: cover; }
+        .v-title { font-weight: bold; font-size: 14px; margin-top: 10px; line-height: 1.4; color: #0f0f0f; }
     </style>
 </head>
 <body>
@@ -45,6 +46,21 @@
     const db = getFirestore(app);
     const uid = new URLSearchParams(window.location.search).get('uid');
 
+    // 動画URLからサムネイルを生成する関数
+    async function generateThumb(url, imgElement) {
+        const video = document.createElement('video');
+        video.src = url;
+        video.crossOrigin = "Anonymous"; // CORS対策
+        video.currentTime = 1; // 1秒目のフレーム
+        video.onloadeddata = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 640; canvas.height = 360;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            imgElement.src = canvas.toDataURL('image/jpeg');
+        };
+    }
+
     if (uid) {
         onSnapshot(doc(db, "users", uid), snap => {
             if(snap.exists()){
@@ -62,8 +78,22 @@
                 const vd = vDoc.data();
                 const div = document.createElement('div'); div.className = "v-card";
                 div.onclick = () => location.href = `watch.html?id=${vDoc.id}`;
-                div.innerHTML = `<img src="${vd.thumbnail || ''}" class="v-thumb"><div class="v-title">${vd.title}</div>`;
+                
+                const thumbId = `thumb-${vDoc.id}`;
+                div.innerHTML = `
+                    <div class="v-thumb-container">
+                        <img src="" class="v-thumb" id="${thumbId}">
+                    </div>
+                    <div class="v-title">${vd.title}</div>
+                `;
                 grid.appendChild(div);
+
+                const img = document.getElementById(thumbId);
+                if (vd.thumbnail) {
+                    img.src = vd.thumbnail;
+                } else {
+                    generateThumb(vd.url, img);
+                }
             });
         });
     }
