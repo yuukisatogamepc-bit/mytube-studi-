@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MyTube - 再生</title>
+    <title>MyTube - 再生と返信</title>
     <style>
         body { font-family: sans-serif; margin: 0; background: #f9f9f9; padding: 20px; }
         .main-container { max-width: 900px; margin: 0 auto; }
@@ -15,9 +15,16 @@
         .btn-sub { background: #0f0f0f; color: white; }
         
         .comment-section { background: white; padding: 20px; border-radius: 12px; }
+        .input-area { margin-bottom: 20px; padding: 10px; border: 1px solid #eee; border-radius: 8px; }
+        #replyTarget { display: none; background: #f0f0f0; padding: 5px 10px; font-size: 12px; border-radius: 4px; margin-bottom: 10px; }
         #commentInput { width: 80%; padding: 10px; border: none; border-bottom: 1px solid #ddd; outline: none; }
-        .comment-item { border-bottom: 1px solid #eee; padding: 10px 0; }
-        .comment-text { font-size: 14px; margin-top: 5px; }
+        
+        /* コメントの見た目 */
+        .comment-item { border-bottom: 1px solid #eee; padding: 15px 0; }
+        .reply-item { margin-left: 40px; border-left: 2px solid #ddd; padding-left: 15px; background: #fafafa; border-bottom: none; }
+        .comment-text { font-size: 14px; margin: 5px 0; }
+        .reply-btn { font-size: 12px; color: #606060; background: none; padding: 0; cursor: pointer; border: none; }
+        .reply-btn:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
@@ -26,14 +33,18 @@
     <h2 id="videoTitle">読み込み中...</h2>
     
     <div class="actions">
-        <button class="btn-sub" id="subBtn" onclick="alert('チャンネル登録しました！')">チャンネル登録</button>
-        <button class="btn-like" onclick="alert('高評価しました！')">👍 高評価</button>
+        <button class="btn-sub" onclick="alert('登録しました')">チャンネル登録</button>
+        <button class="btn-like" onclick="alert('高評価しました')">👍 高評価</button>
     </div>
 
     <div class="comment-section">
         <h3>コメント</h3>
-        <input type="text" id="commentInput" placeholder="コメントを追加...">
-        <button onclick="addComment()">投稿</button>
+        <div class="input-area">
+            <div id="replyTarget"></div>
+            <input type="text" id="commentInput" placeholder="コメントを入力...">
+            <button onclick="sendComment()">投稿</button>
+            <button id="cancelReply" style="display:none; background:none; font-size:12px;" onclick="resetReply()">キャンセル</button>
+        </div>
         <div id="commentList"></div>
     </div>
 </div>
@@ -56,8 +67,8 @@
 
     const params = new URLSearchParams(window.location.search);
     const videoId = params.get('id');
+    let currentReplyId = null; // 返信先のコメントIDを保存
 
-    // 動画情報の取得
     async function loadVideoData() {
         if (!videoId) return;
         const docRef = doc(db, "videos", videoId);
@@ -69,37 +80,67 @@
         }
     }
 
-    // コメントの投稿
-    window.addComment = async function() {
-        const input = document.getElementById('commentInput');
-        if (!input.value || !videoId) return;
-        try {
-            await addDoc(collection(db, "comments"), {
-                videoId: videoId,
-                text: input.value,
-                createdAt: serverTimestamp()
-            });
-            input.value = "";
-        } catch (e) {
-            console.error("投稿エラー:", e);
-            alert("コメントの投稿に失敗しました。ルールを確認してください。");
-        }
+    // 返信モードに切り替え
+    window.setReply = function(id, text) {
+        currentReplyId = id;
+        const target = document.getElementById('replyTarget');
+        target.style.display = 'block';
+        target.innerText = `返信先: ${text.substring(0, 15)}...`;
+        document.getElementById('cancelReply').style.display = 'inline';
+        document.getElementById('commentInput').focus();
     };
 
-    // コメントの読み込み（並べ替えを削除して確実に表示）
+    // 返信モード解除
+    window.resetReply = function() {
+        currentReplyId = null;
+        document.getElementById('replyTarget').style.display = 'none';
+        document.getElementById('cancelReply').style.display = 'none';
+        document.getElementById('commentInput').value = "";
+    };
+
+    // コメント・返信の投稿
+    window.sendComment = async function() {
+        const input = document.getElementById('commentInput');
+        if (!input.value || !videoId) return;
+        
+        await addDoc(collection(db, "comments"), {
+            videoId: videoId,
+            text: input.value,
+            parentId: currentReplyId, // 親コメントのID（なければnull）
+            createdAt: serverTimestamp()
+        });
+        resetReply();
+    };
+
+    // コメントのリアルタイム表示
     if (videoId) {
         const q = query(collection(db, "comments"), where("videoId", "==", videoId));
         onSnapshot(q, (snapshot) => {
             const list = document.getElementById('commentList');
+            const allComments = [];
+            snapshot.forEach(doc => allComments.push({id: doc.id, ...doc.data()}));
+            
             list.innerHTML = "";
-            snapshot.forEach((doc) => {
+            // まず「親コメント」だけを表示
+            const parents = allComments.filter(c => !c.parentId);
+            parents.forEach(parent => {
                 const div = document.createElement('div');
                 div.className = 'comment-item';
-                div.innerHTML = `<div class="comment-text">${doc.data().text}</div>`;
+                div.innerHTML = `
+                    <div class="comment-text">${parent.text}</div>
+                    <button class="reply-btn" onclick="setReply('${parent.id}', '${parent.text}')">返信</button>
+                `;
                 list.appendChild(div);
+
+                // その親に対する「返信」を探して表示
+                const replies = allComments.filter(c => c.parentId === parent.id);
+                replies.forEach(reply => {
+                    const rDiv = document.createElement('div');
+                    rDiv.className = 'comment-item reply-item';
+                    rDiv.innerHTML = `<div class="comment-text">${reply.text}</div>`;
+                    list.appendChild(rDiv);
+                });
             });
-        }, (error) => {
-            console.error("読み込みエラー:", error);
         });
     }
 
