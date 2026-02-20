@@ -15,6 +15,7 @@
         button { background: #007bff; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
         button:disabled { background: #ccc; cursor: not-allowed; }
 
+        /* 進捗バーのスタイル */
         #progressContainer { display: none; margin-top: 20px; text-align: center; }
         .progress-bg { background: #eee; border-radius: 10px; height: 10px; width: 100%; overflow: hidden; margin-top: 5px; }
         .progress-bar { background: #007bff; height: 100%; width: 0%; transition: width 0.2s; }
@@ -28,7 +29,7 @@
 </a>
 
 <div class="upload-card">
-    <h2>動画をアップロード (Cloudinary)</h2>
+    <h2>動画をアップロード</h2>
     <input type="text" id="title" placeholder="動画のタイトル">
     <label style="display:block; margin-top:15px; font-size:14px;">動画ファイルを選択:</label>
     <input type="file" id="videoFile" accept="video/*">
@@ -36,7 +37,7 @@
     <button id="uploadBtn">投稿する</button>
 
     <div id="progressContainer">
-        <div id="statusText">アップロード中... 0%</div>
+        <div id="statusText">準備中... 0%</div>
         <div class="progress-bg">
             <div id="progressBar" class="progress-bar"></div>
         </div>
@@ -48,10 +49,9 @@
     import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-    // --- 設定ここから ---
-    const CLOUD_NAME = "あなたのCloud Nameをここに入れる";
-    const UPLOAD_PRESET = "あなたのUpload Preset名をここに入れる";
-    // --- 設定ここまで ---
+    // Cloudinary 設定
+    const CLOUD_NAME = "du5blunb0";
+    const UPLOAD_PRESET = "mytube_preset";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o",
@@ -76,8 +76,8 @@
         const title = document.getElementById('title').value;
         const file = document.getElementById('videoFile').files[0];
         
-        if (!title || !file) return alert("入力が足りません");
-        if (CLOUD_NAME === "あなたのCloud Nameをここに入れる") return alert("Cloudinaryの設定を入力してください");
+        if (!title || !file) return alert("タイトルと動画を選択してください");
+        if (!currentUser) return alert("ログインが確認できません");
 
         const btn = document.getElementById('uploadBtn');
         const progressContainer = document.getElementById('progressContainer');
@@ -87,7 +87,7 @@
         btn.disabled = true;
         progressContainer.style.display = 'block';
 
-        // Cloudinaryへアップロード (XMLHttpRequestを使用して進捗を取得)
+        // Cloudinaryへのアップロード
         const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`;
         const xhr = new XMLHttpRequest();
         const formData = new FormData();
@@ -97,7 +97,7 @@
 
         xhr.open('POST', url, true);
 
-        // 進捗状況の更新
+        // アップロード進捗の監視
         xhr.upload.onprogress = (e) => {
             if (e.lengthComputable) {
                 const progress = Math.round((e.loaded / e.total) * 100);
@@ -109,29 +109,37 @@
         xhr.onload = async () => {
             if (xhr.status === 200) {
                 const response = JSON.parse(xhr.responseText);
-                const videoUrl = response.secure_url; // 動画のURL
-                const thumbUrl = videoUrl.replace(/\.[^/.]+$/, ".jpg"); // 自動サムネイルURL作成
+                const videoUrl = response.secure_url;
+                // Cloudinaryの機能で動画の拡張子をjpgに変えるだけでサムネイルになります
+                const thumbUrl = videoUrl.substring(0, videoUrl.lastIndexOf(".")) + ".jpg";
 
-                // Firestoreへ登録
-                await addDoc(collection(db, "videos"), {
-                    title: title,
-                    url: videoUrl,
-                    thumbnail: thumbUrl,
-                    userId: currentUser.uid,
-                    views: 0,
-                    createdAt: serverTimestamp()
-                });
-
-                alert("投稿が完了しました！");
-                location.href = "index.html";
+                // Firestoreに動画情報を書き込み
+                try {
+                    await addDoc(collection(db, "videos"), {
+                        title: title,
+                        url: videoUrl,
+                        thumbnail: thumbUrl,
+                        userId: currentUser.uid,
+                        views: 0,
+                        createdAt: serverTimestamp()
+                    });
+                    alert("投稿が完了しました！");
+                    location.href = "index.html";
+                } catch (e) {
+                    console.error(e);
+                    alert("Firestoreへの保存に失敗しました");
+                    btn.disabled = false;
+                }
             } else {
-                alert("Cloudinaryへのアップロードに失敗しました");
+                const err = JSON.parse(xhr.responseText);
+                console.error(err);
+                alert("Cloudinaryへのアップロードに失敗しました: " + (err.error?.message || "不明なエラー"));
                 btn.disabled = false;
             }
         };
 
         xhr.onerror = () => {
-            alert("通信エラーが発生しました");
+            alert("ネットワークエラーが発生しました");
             btn.disabled = false;
         };
 
