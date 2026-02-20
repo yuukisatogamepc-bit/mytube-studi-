@@ -3,54 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>プロフィール - iroTube</title>
+    <title>チャンネル - iroTube</title>
     <style>
-        body { font-family: sans-serif; margin: 0; background: #fff; padding: 20px; }
-        .header-logo { font-size: 24px; font-weight: bold; text-decoration: none; display: flex; align-items: center; margin-bottom: 30px; }
-        .iro { color: #007bff; }
-        .tube { color: #000; background: #ffcc00; padding: 2px 6px; border-radius: 4px; margin-left: 2px; }
-        
-        .profile-card { border: 1px solid #eee; padding: 20px; border-radius: 12px; max-width: 600px; margin: 0 auto 40px; }
-        .u-icon-lg { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; background: #eee; }
-        
-        h3 { border-bottom: 2px solid #eee; padding-bottom: 10px; }
-        .my-v-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; }
-        .v-item { border: 1px solid #eee; padding: 10px; border-radius: 8px; position: relative; }
-        .v-thumb { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 4px; }
-        .v-title { font-size: 14px; font-weight: bold; margin: 8px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        
-        .del-btn { 
-            background: #ff4d4d; color: #fff; border: none; padding: 5px 10px; 
-            border-radius: 4px; cursor: pointer; font-size: 12px; width: 100%; 
-        }
-        .del-btn:hover { background: #cc0000; }
+        body { font-family: sans-serif; margin: 0; background: #fff; text-align: center; }
+        .header { padding: 40px 20px; border-bottom: 1px solid #eee; }
+        .c-icon { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; background: #eee; }
+        .c-name { font-size: 24px; font-weight: bold; margin: 10px 0; }
+        .v-grid { display: flex; flex-wrap: wrap; gap: 15px; padding: 20px; justify-content: center; }
+        .v-card { width: 200px; text-decoration: none; color: #000; text-align: left; }
+        .thumb { width: 100%; aspect-ratio: 16/9; background: #eee; border-radius: 8px; object-fit: cover; }
     </style>
 </head>
 <body>
 
-<a href="index.html" class="header-logo">
-    <span class="iro">iro</span><span class="tube">Tube</span>
-</a>
-
-<div class="profile-card">
-    <div style="display:flex; align-items:center; gap:20px;">
-        <img id="uIcon" class="u-icon-lg" src="">
-        <div>
-            <h2 id="uName" style="margin:0;">ユーザー名</h2>
-            <button onclick="location.href='settings.html'" style="margin-top:10px;">プロフィールを編集</button>
-            <button id="logoutBtn" style="margin-top:10px; background:none; border:1px solid #ccc; cursor:pointer;">ログアウト</button>
-        </div>
-    </div>
+<div class="header">
+    <img id="chIcon" class="c-icon" src="">
+    <div id="chName" class="c-name">読み込み中...</div>
 </div>
 
-<h3>投稿した動画の管理</h3>
-<div id="myVideoList" class="my-v-list">
-    </div>
+<h3>投稿動画</h3>
+<div class="v-grid" id="vGrid"></div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, collection, query, where, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getFirestore, doc, getDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o",
@@ -63,61 +39,34 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-    const auth = getAuth(app);
+    const params = new URLSearchParams(window.location.search);
+    const targetUid = params.get("id"); // URLの ?id= から取得
 
-    onAuthStateChanged(auth, async user => {
-        if (!user) {
-            location.href = 'login.html';
-            return;
-        }
-
-        // ユーザー情報の表示
-        onSnapshot(doc(db, "users", user.uid), snap => {
-            if (snap.exists()) {
-                const d = snap.data();
-                document.getElementById('uName').innerText = d.name || "名前なし";
-                document.getElementById('uIcon').src = d.icon || "";
+    if (targetUid) {
+        // 1. そのユーザーの情報を取得
+        getDoc(doc(db, "users", targetUid)).then(uSnap => {
+            if (uSnap.exists()) {
+                const ud = uSnap.data();
+                document.getElementById('chName').innerText = ud.name;
+                document.getElementById('chIcon').src = ud.icon || "";
             }
         });
 
-        // 自分の動画一覧の取得
-        const q = query(collection(db, "videos"), where("userId", "==", user.uid));
-        onSnapshot(q, snap => {
-            const list = document.getElementById('myVideoList');
-            list.innerHTML = "";
-            snap.forEach(vDoc => {
-                const vd = vDoc.data();
-                const vid = vDoc.id;
-                
-                const item = document.createElement('div');
-                item.className = "v-item";
-                item.innerHTML = `
-                    <img src="${vd.thumbnail || ''}" class="v-thumb">
-                    <div class="v-title">${vd.title}</div>
-                    <button class="del-btn" onclick="deleteVideo('${vid}')">動画を削除</button>
-                `;
-                list.appendChild(item);
+        // 2. そのユーザーが投稿した動画だけを表示
+        const q = query(collection(db, "videos"), where("userId", "==", targetUid));
+        getDocs(q).then(snap => {
+            const grid = document.getElementById('vGrid');
+            grid.innerHTML = "";
+            snap.forEach(doc => {
+                const v = doc.data();
+                grid.innerHTML += `
+                    <a href="watch.html?id=${doc.id}" class="v-card">
+                        <img class="thumb" src="${v.thumbnail || ''}">
+                        <div style="font-weight:bold; margin-top:5px;">${v.title}</div>
+                    </a>`;
             });
         });
-    });
-
-    // 動画削除関数
-    window.deleteVideo = async (vid) => {
-        if (!confirm("本当にこの動画を削除しますか？\n(この操作は取り消せません)")) return;
-        
-        try {
-            await deleteDoc(doc(db, "videos", vid));
-            alert("動画を削除しました。");
-        } catch (e) {
-            console.error("削除エラー:", e);
-            alert("削除に失敗しました。");
-        }
-    };
-
-    // ログアウト
-    document.getElementById('logoutBtn').onclick = () => {
-        signOut(auth).then(() => location.href = 'index.html');
-    };
+    }
 </script>
 </body>
 </html>
