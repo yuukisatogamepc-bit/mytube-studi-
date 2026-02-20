@@ -8,34 +8,25 @@
         body { font-family: sans-serif; margin: 0; background: #fff; display: flex; flex-direction: column; align-items: center; }
         header { width: 100%; padding: 10px 20px; border-bottom: 1px solid #eee; box-sizing: border-box; }
         .logo { font-size: 20px; font-weight: bold; text-decoration: none; color: #007bff; }
-        
         .container { display: flex; max-width: 1200px; width: 100%; gap: 20px; padding: 20px; box-sizing: border-box; }
         .main-col { flex: 2; }
         .side-col { flex: 1; }
-
         video { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 12px; }
         .v-title { font-size: 20px; font-weight: bold; margin: 15px 0; }
-        
         .action-bar { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 10px; }
         .author-info { display: flex; align-items: center; gap: 10px; }
-        .author-icon { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
+        .author-icon { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #eee; }
         .author-name { font-weight: bold; text-decoration: none; color: #000; }
-        
         .btn-group { display: flex; gap: 10px; }
         .btn { padding: 8px 16px; border-radius: 20px; border: none; cursor: pointer; font-weight: bold; }
         .btn-like { background: #eee; }
-        .btn-sub { background: #000; color: #fff; }
-
-        /* コメント欄 */
+        .btn-sub { background: #cc0000; color: #fff; }
+        .btn-sub.active { background: #eee; color: #606060; }
         .comment-section { margin-top: 20px; }
         .comment-input { width: 100%; padding: 10px; border: none; border-bottom: 1px solid #ddd; margin-bottom: 10px; outline: none; }
         .comment-item { display: flex; gap: 10px; margin-bottom: 15px; font-size: 14px; }
-        .comment-text { line-height: 1.4; }
-
-        /* 関連動画 */
         .side-card { display: flex; gap: 10px; text-decoration: none; color: #000; margin-bottom: 12px; }
         .side-thumb { width: 120px; aspect-ratio: 16/9; background: #eee; border-radius: 8px; object-fit: cover; }
-        .side-title { font-size: 13px; font-weight: bold; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
     </style>
 </head>
 <body>
@@ -46,10 +37,9 @@
     <div class="main-col">
         <video id="player" controls autoplay></video>
         <div id="vTitle" class="v-title">読み込み中...</div>
-        
         <div class="action-bar">
             <div class="author-info">
-                <a id="authorLink" href=""><img id="authorIcon" class="author-icon" src=""></a>
+                <a id="authorLink" href=""><img id="authorIcon" class="author-icon"></a>
                 <div>
                     <a id="authorName" href="" class="author-name">読み込み中...</a>
                     <div id="subCount" style="font-size:12px; color:#606060;">登録者 0人</div>
@@ -60,14 +50,12 @@
                 <button class="btn btn-like" id="likeBtn">👍 <span id="likeCount">0</span></button>
             </div>
         </div>
-
         <div class="comment-section">
             <h3 id="commentHeader">コメント 0件</h3>
             <input type="text" id="commentInput" class="comment-input" placeholder="コメントを追加...">
             <div id="commentList"></div>
         </div>
     </div>
-
     <div class="side-col">
         <h4>関連動画</h4>
         <div id="relatedList"></div>
@@ -100,34 +88,47 @@
     if (vid) { loadWatchPage(); }
 
     async function loadWatchPage() {
-        const vSnap = await getDoc(doc(db, "videos", vid));
+        const vRef = doc(db, "videos", vid);
+        const vSnap = await getDoc(vRef);
         if (!vSnap.exists()) return;
         const v = vSnap.data();
         
-        // 1. 動画再生とタイトル
         document.getElementById('player').src = v.url;
         document.getElementById('vTitle').innerText = v.title;
         document.getElementById('likeCount').innerText = v.likes || 0;
 
-        // 2. 投稿者情報の取得 (遷移先の修正)
-        const uSnap = await getDoc(doc(db, "users", v.userId));
+        const uRef = doc(db, "users", v.userId);
+        const uSnap = await getDoc(uRef);
         if (uSnap.exists()) {
             const ud = uSnap.data();
-            const channelUrl = `channel.html?id=${v.userId}`; // ここを投稿者IDに固定
+            const channelUrl = `channel.html?id=${v.userId}`;
             document.getElementById('authorLink').href = channelUrl;
             document.getElementById('authorName').href = channelUrl;
             document.getElementById('authorName').innerText = ud.name;
             document.getElementById('authorIcon').src = ud.icon || "";
+            document.getElementById('subCount').innerText = `登録者 ${ud.subscribers || 0}人`;
         }
 
-        // 3. 高評価機能
+        // 高評価（重複防止）
         document.getElementById('likeBtn').onclick = async () => {
             if (!currentUser) return alert("ログインが必要です");
-            await updateDoc(doc(db, "videos", vid), { likes: increment(1) });
+            const btn = document.getElementById('likeBtn');
+            btn.disabled = true; // 連打防止
+            await updateDoc(vRef, { likes: increment(1) });
             document.getElementById('likeCount').innerText = parseInt(document.getElementById('likeCount').innerText) + 1;
         };
 
-        // 4. コメント機能
+        // チャンネル登録
+        document.getElementById('subBtn').onclick = async () => {
+            if (!currentUser) return alert("ログインが必要です");
+            const sBtn = document.getElementById('subBtn');
+            if (sBtn.classList.contains('active')) return;
+            await updateDoc(uRef, { subscribers: increment(1) });
+            sBtn.innerText = "登録済み";
+            sBtn.classList.add('active');
+        };
+
+        // コメント（undefined対策）
         const cCol = collection(db, "videos", vid, "comments");
         onSnapshot(cCol, snap => {
             document.getElementById('commentHeader').innerText = `コメント ${snap.size}件`;
@@ -136,17 +137,18 @@
                 const c = doc.data();
                 document.getElementById('commentList').innerHTML += `
                     <div class="comment-item">
-                        <div class="comment-text"><strong>${c.userName}</strong><br>${c.text}</div>
+                        <div><strong>${c.userName || '名無しさん'}</strong><br>${c.text}</div>
                     </div>`;
             });
         });
 
         document.getElementById('commentInput').onkeypress = async (e) => {
-            if (e.key === 'Enter' && currentUser) {
-                const uSnap = await getDoc(doc(db, "users", currentUser.uid));
+            if (e.key === 'Enter' && currentUser && e.target.value.trim() !== "") {
+                const mySnap = await getDoc(doc(db, "users", currentUser.uid));
+                const myName = mySnap.exists() ? mySnap.data().name : "匿名ユーザー";
                 await addDoc(cCol, {
                     text: e.target.value,
-                    userName: uSnap.data().name,
+                    userName: myName,
                     userId: currentUser.uid,
                     createdAt: serverTimestamp()
                 });
@@ -154,21 +156,40 @@
             }
         };
 
-        // 5. 関連動画 (全動画からランダムに取得)
+        // 関連動画（サムネイル補完）
         const vCols = await getDocs(query(collection(db, "videos"), limit(10)));
         vCols.forEach(doc => {
             if (doc.id !== vid) {
                 const rv = doc.data();
+                const rid = doc.id;
+                const rThumbId = `rthumb-${rid}`;
                 document.getElementById('relatedList').innerHTML += `
-                    <a href="watch.html?id=${doc.id}" class="side-card">
-                        <img class="side-thumb" src="${rv.thumbnail || ''}">
-                        <div class="side-title">${rv.title}</div>
+                    <a href="watch.html?id=${rid}" class="side-card">
+                        <img id="${rThumbId}" class="side-thumb" src="">
+                        <div style="font-size:13px; font-weight:bold;">${rv.title}</div>
                     </a>`;
+                
+                setTimeout(() => {
+                    const img = document.getElementById(rThumbId);
+                    if (rv.thumbnail) { img.src = rv.thumbnail; }
+                    else { generateThumb(rv.url, img); }
+                }, 100);
             }
         });
 
-        // 視聴回数アップ
-        updateDoc(doc(db, "videos", vid), { views: increment(1) });
+        updateDoc(vRef, { views: increment(1) });
+    }
+
+    function generateThumb(url, imgElement) {
+        const v = document.createElement('video');
+        v.src = url; v.preload = "metadata"; v.muted = true; v.crossOrigin = "anonymous";
+        v.onloadedmetadata = () => { v.currentTime = 1.0; };
+        v.onseeked = () => {
+            const c = document.createElement('canvas'); c.width = 160; c.height = 90;
+            c.getContext('2d').drawImage(v, 0, 0, 160, 90);
+            imgElement.src = c.toDataURL('image/jpeg');
+            v.remove();
+        };
     }
 </script>
 </body>
