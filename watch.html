@@ -20,13 +20,15 @@
         .btn-group { display: flex; gap: 10px; align-items: center; }
         .btn { padding: 8px 16px; border-radius: 20px; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; }
         
-        /* ボタンの状態スタイル */
         .btn-like { background: #eee; }
         .btn-like.active { background: #007bff; color: #fff; }
         .btn-sub { background: #cc0000; color: #fff; }
         .btn-sub.active { background: #eee; color: #606060; }
         
         .admin-del-btn { background: #ff4d4d; color: #fff; font-size: 12px; display: none; padding: 8px 12px; border-radius: 5px; border: none; cursor: pointer; }
+        /* 管理者用編集スタイル */
+        .admin-editable { cursor: pointer; border-bottom: 1px dashed #ccc; }
+        .admin-editable:hover { background: #fffde7; }
 
         .comment-section { margin-top: 20px; }
         .comment-input { width: 100%; padding: 10px; border: none; border-bottom: 1px solid #ddd; margin-bottom: 10px; outline: none; }
@@ -43,12 +45,15 @@
     <div class="main-col">
         <video id="player" controls autoplay></video>
         <div id="vTitle" class="v-title">読み込み中...</div>
+        <div id="vStats" style="font-size:14px; color:#606060; margin-bottom:10px;">
+            再生回数 <span id="viewCountDisplay">0</span>回
+        </div>
         <div class="action-bar">
             <div class="author-info">
                 <a id="authorLink" href=""><img id="authorIcon" class="author-icon"></a>
                 <div>
                     <a id="authorName" href="" class="author-name">読み込み中...</a>
-                    <div id="subCount" style="font-size:12px; color:#606060;">登録者 0人</div>
+                    <div id="subCountArea" style="font-size:12px; color:#606060;">登録者 <span id="subCountDisplay">0</span>人</div>
                 </div>
                 <button class="btn btn-sub" id="subBtn">チャンネル登録</button>
             </div>
@@ -90,25 +95,52 @@
     const vid = params.get("id");
     let currentUser = null;
 
-    const ADMIN_UID = "ここにあなたのUIDを入れる"; 
+    const ADMIN_UID = "tP5CqCTRO3f2QQ8jdoj0ftY8kZU2"; 
 
     onAuthStateChanged(auth, user => { 
         currentUser = user; 
         if(user && user.uid === ADMIN_UID) {
             document.getElementById('adminDelBtn').style.display = 'block';
+            setupAdminEditing();
         }
         if(vid && user) checkUserStates();
     });
 
     if (vid) { loadWatchPage(); }
 
+    // 管理者用：数値クリック編集機能
+    function setupAdminEditing() {
+        const editFields = [
+            { id: 'viewCountDisplay', key: 'views', refPath: () => doc(db, "videos", vid) },
+            { id: 'likeCount', key: 'likes', refPath: () => doc(db, "videos", vid) },
+            { id: 'subCountDisplay', key: 'subscribers', refPath: async () => {
+                const vSnap = await getDoc(doc(db, "videos", vid));
+                return doc(db, "users", vSnap.data().userId);
+            }}
+        ];
+
+        editFields.forEach(field => {
+            const el = document.getElementById(field.id);
+            el.classList.add('admin-editable');
+            el.title = "クリックして数値を変更";
+            el.onclick = async () => {
+                const newVal = prompt("新しい数値を入力してください:", el.innerText.replace(/,/g, ''));
+                if (newVal !== null && !isNaN(newVal)) {
+                    const targetRef = typeof field.refPath === 'function' && field.refPath.constructor.name === 'AsyncFunction' 
+                                      ? await field.refPath() : field.refPath();
+                    await updateDoc(targetRef, { [field.key]: parseInt(newVal) });
+                    el.innerText = parseInt(newVal).toLocaleString();
+                    alert("更新しました");
+                }
+            };
+        });
+    }
+
     async function checkUserStates() {
         if(!currentUser) return;
-        // 高評価済みか確認
         const likeSnap = await getDoc(doc(db, "videos", vid, "likedUsers", currentUser.uid));
         if(likeSnap.exists()) document.getElementById('likeBtn').classList.add('active');
 
-        // 登録済みか確認
         const vSnap = await getDoc(doc(db, "videos", vid));
         if(vSnap.exists()){
             const authorId = vSnap.data().userId;
@@ -129,10 +161,11 @@
         
         document.getElementById('player').src = v.url;
         document.getElementById('vTitle').innerText = v.title;
+        document.getElementById('viewCountDisplay').innerText = (v.views || 0).toLocaleString();
         document.getElementById('likeCount').innerText = v.likes || 0;
 
         document.getElementById('adminDelBtn').onclick = async () => {
-            if (confirm("管理者権限でこの動画を完全に削除しますか？")) {
+            if (confirm("管理者として、この動画を完全に削除しますか？")) {
                 await deleteDoc(vRef);
                 location.href = "index.html";
             }
@@ -147,23 +180,19 @@
             document.getElementById('authorName').href = channelUrl;
             document.getElementById('authorName').innerText = ud.name;
             document.getElementById('authorIcon').src = ud.icon || "";
-            document.getElementById('subCount').innerText = `登録者 ${ud.subscribers || 0}人`;
+            document.getElementById('subCountDisplay').innerText = (ud.subscribers || 0).toLocaleString();
         }
 
-        // 高評価（解除対応・二重防止）
         document.getElementById('likeBtn').onclick = async () => {
             if (!currentUser) return alert("ログインが必要です");
             const btn = document.getElementById('likeBtn');
             const likeRef = doc(db, "videos", vid, "likedUsers", currentUser.uid);
-            
             if (btn.classList.contains('active')) {
-                // 解除
                 await deleteDoc(likeRef);
                 await updateDoc(vRef, { likes: increment(-1) });
                 btn.classList.remove('active');
                 document.getElementById('likeCount').innerText = parseInt(document.getElementById('likeCount').innerText) - 1;
             } else {
-                // 高評価
                 await setDoc(likeRef, { uid: currentUser.uid });
                 await updateDoc(vRef, { likes: increment(1) });
                 btn.classList.add('active');
@@ -171,29 +200,24 @@
             }
         };
 
-        // チャンネル登録（解除対応・二重防止）
         document.getElementById('subBtn').onclick = async () => {
             if (!currentUser) return alert("ログインが必要です");
             const sBtn = document.getElementById('subBtn');
             const authorId = v.userId;
             const subRef = doc(db, "users", authorId, "subscriberList", currentUser.uid);
-
             if (sBtn.classList.contains('active')) {
-                // 解除
                 await deleteDoc(subRef);
                 await updateDoc(uRef, { subscribers: increment(-1) });
                 sBtn.innerText = "チャンネル登録";
                 sBtn.classList.remove('active');
             } else {
-                // 登録
                 await setDoc(subRef, { uid: currentUser.uid });
                 await updateDoc(uRef, { subscribers: increment(1) });
                 sBtn.innerText = "登録済み";
                 sBtn.classList.add('active');
             }
-            // 登録者表示更新
             const updatedSnap = await getDoc(uRef);
-            document.getElementById('subCount').innerText = `登録者 ${updatedSnap.data().subscribers || 0}人`;
+            document.getElementById('subCountDisplay').innerText = (updatedSnap.data().subscribers || 0).toLocaleString();
         };
 
         const cCol = collection(db, "videos", vid, "comments");
