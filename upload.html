@@ -3,51 +3,132 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MyTube - 投稿</title>
+    <title>MyTube - 動画投稿</title>
     <style>
-        body { font-family: sans-serif; background: #f9f9f9; display: flex; flex-direction: column; align-items: center; margin: 0; }
-        header { width: 100%; padding: 10px 20px; background: white; border-bottom: 1px solid #ddd; }
-        .logo { color: red; font-size: 24px; font-weight: bold; text-decoration: none; }
-        .box { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); width: 400px; margin-top: 50px; }
-        input { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: #065fd4; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; }
+        :root { --yt-red: #ff0000; --yt-blue: #065fd4; }
+        body { font-family: "Roboto", Arial, sans-serif; background: #f9f9f9; margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .upload-card { background: white; width: 100%; max-width: 500px; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h2 { margin-top: 0; color: #0f0f0f; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: bold; margin-bottom: 8px; font-size: 14px; }
+        input[type="text"], input[type="file"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
+        .hint { font-size: 12px; color: #606060; margin-top: 5px; }
+        
+        #uploadBtn { 
+            background: var(--yt-blue); color: white; border: none; padding: 12px; 
+            width: 100%; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 16px; margin-top: 10px;
+        }
+        #uploadBtn:disabled { background: #ccc; cursor: not-allowed; }
+        #status { text-align: center; margin-top: 15px; font-weight: bold; color: var(--yt-blue); }
+        .back-link { display: block; text-align: center; margin-top: 20px; text-decoration: none; color: #606060; font-size: 14px; }
     </style>
 </head>
 <body>
-<header><a href="index.html" class="logo">MyTube</a></header>
-<div class="box">
-    <h2>動画を投稿</h2>
-    <input type="text" id="vUrl" placeholder="動画URL (mp4直リンク)">
-    <input type="text" id="tUrl" placeholder="サムネイル画像URL">
-    <input type="text" id="vTitle" placeholder="タイトル">
-    <button id="upBtn">投稿する</button>
+
+<div class="upload-card">
+    <h2>動画をアップロード</h2>
+    
+    <div class="form-group">
+        <label>タイトル</label>
+        <input type="text" id="title" placeholder="魅力的なタイトルを入力">
+    </div>
+
+    <div class="form-group">
+        <label>動画ファイル</label>
+        <input type="file" id="videoFile" accept="video/*">
+        <div class="hint">MP4, MOVなどの動画形式に対応</div>
+    </div>
+
+    <div class="form-group">
+        <label>サムネイル画像 (任意)</label>
+        <input type="file" id="thumbFile" accept="image/*">
+        <div class="hint">未選択の場合は動画から自動生成されます</div>
+    </div>
+
+    <button id="uploadBtn">投稿する</button>
+    <div id="status"></div>
+    
+    <a href="index.html" class="back-link">ホームに戻る</a>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
-    const firebaseConfig = { /* 上記と同じConfig */ };
+    const firebaseConfig = {
+        apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o",
+        authDomain: "mytube-f4544.firebaseapp.com",
+        projectId: "mytube-f4544",
+        storageBucket: "mytube-f4544.firebasestorage.app",
+        messagingSenderId: "655444283107",
+        appId: "1:655444283107:web:04f9173faf2d951790ffd6"
+    };
+
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const auth = getAuth(app);
-    let currentUser = null;
+    const storage = getStorage(app);
 
-    onAuthStateChanged(auth, u => { if(u) currentUser = u; else location.href="index.html"; });
+    let user = null;
+    onAuthStateChanged(auth, u => {
+        if (!u) {
+            alert("ログインが必要です");
+            location.href = 'login.html';
+        }
+        user = u;
+    });
 
-    document.getElementById('upBtn').onclick = async () => {
-        const vUrl = document.getElementById('vUrl').value;
-        const tUrl = document.getElementById('tUrl').value;
-        const vTitle = document.getElementById('vTitle').value;
-        if(!vUrl || !vTitle) return alert("必須項目を入力してください");
+    document.getElementById('uploadBtn').onclick = async () => {
+        const title = document.getElementById('title').value;
+        const vFile = document.getElementById('videoFile').files[0];
+        const tFile = document.getElementById('thumbFile').files[0];
+        const status = document.getElementById('status');
+        const btn = document.getElementById('uploadBtn');
 
-        await addDoc(collection(db, "videos"), {
-            url: vUrl, thumbnail: tUrl, title: vTitle,
-            userId: currentUser.uid, views: 0, likes: 0, createdAt: serverTimestamp()
-        });
-        alert("投稿しました！");
-        location.href = "index.html";
+        if (!title || !vFile) return alert("タイトルと動画ファイルは必須です！");
+
+        btn.disabled = true;
+        status.innerText = "アップロード中... (閉じないでください)";
+
+        try {
+            // 1. 動画をStorageにアップロード
+            const vName = `${Date.now()}_${vFile.name}`;
+            const vRef = ref(storage, `videos/${vName}`);
+            await uploadBytes(vRef, vFile);
+            const vUrl = await getDownloadURL(vRef);
+
+            // 2. サムネイルをStorageにアップロード (選択されている場合のみ)
+            let tUrl = "";
+            if (tFile) {
+                const tName = `${Date.now()}_thumb_${tFile.name}`;
+                const tRef = ref(storage, `thumbs/${tName}`);
+                await uploadBytes(tRef, tFile);
+                tUrl = await getDownloadURL(tRef);
+            }
+
+            // 3. Firestoreに情報を保存
+            await addDoc(collection(db, "videos"), {
+                title: title,
+                url: vUrl,
+                thumbnail: tUrl, // 手動設定がなければ空（空なら再生画面等で自動生成される）
+                userId: user.uid,
+                views: 0,
+                likes: 0,
+                createdAt: serverTimestamp()
+            });
+
+            status.innerText = "投稿完了！";
+            alert("動画を公開しました！");
+            location.href = 'index.html';
+
+        } catch (e) {
+            console.error(e);
+            alert("エラーが発生しました: " + e.message);
+            btn.disabled = false;
+            status.innerText = "";
+        }
     };
 </script>
 </body>
