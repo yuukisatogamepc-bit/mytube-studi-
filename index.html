@@ -8,7 +8,7 @@
         body { font-family: sans-serif; margin: 0; background: #fff; }
         header { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; border-bottom: 1px solid #eee; position: sticky; top: 0; background: #fff; z-index: 100; }
         
-        /* ロゴデザイン */
+        /* ロゴデザイン：iro(青) Tube(黄色背景) */
         .logo { font-size: 20px; font-weight: bold; text-decoration: none; display: flex; align-items: center; }
         .iro { color: #007bff; }
         .tube { color: #000; background: #ffcc00; padding: 2px 5px; border-radius: 4px; margin-left: 2px; }
@@ -19,8 +19,9 @@
 
         .v-grid { display: flex; flex-wrap: wrap; gap: 15px; padding: 20px; }
         .v-card { width: 220px; text-decoration: none; color: #000; font-size: 14px; }
-        .thumb { width: 100%; aspect-ratio: 16/9; background: #eee; border-radius: 8px; object-fit: cover; }
-        .v-title { font-weight: bold; margin-top: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .thumb-container { width: 100%; aspect-ratio: 16/9; background: #eee; border-radius: 8px; overflow: hidden; }
+        .thumb { width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.3s; }
+        .v-title { font-weight: bold; margin-top: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     </style>
 </head>
 <body>
@@ -57,36 +58,84 @@
     const db = getFirestore(app);
     const auth = getAuth(app);
 
-    // ログイン状態の監視
+    // ログイン状態の監視：アイコン表示とプロフィール変更への導線
     onAuthStateChanged(auth, async user => {
         const userArea = document.getElementById('userArea');
         if (user) {
-            // ログイン中：ユーザーのアイコンを取得してプロフィールページへのリンクを表示
             const uSnap = await getDoc(doc(db, "users", user.uid));
             const userData = uSnap.data();
-            const iconUrl = userData && userData.icon ? userData.icon : ""; // Base64アイコン対応
-            userArea.innerHTML = `<img src="${iconUrl}" class="u-icon-btn" onclick="location.href='profile.html'" title="プロフィールを変更">`;
+            const iconUrl = userData && userData.icon ? userData.icon : "";
+            // アイコンクリックで profile.html（プロフィール・動画管理）へ
+            userArea.innerHTML = `<img src="${iconUrl}" class="u-icon-btn" onclick="location.href='profile.html'" title="プロフィール/管理">`;
         } else {
-            // 未ログイン：ログインボタンを表示
             userArea.innerHTML = `<a href="login.html" class="login-btn">ログイン</a>`;
         }
     });
 
-    // 動画一覧の取得
+    // 動画一覧の表示
     onSnapshot(query(collection(db, "videos"), orderBy("createdAt", "desc")), snap => {
         const grid = document.getElementById('grid');
         grid.innerHTML = "";
         snap.forEach(vDoc => {
             const v = vDoc.data();
+            const vid = vDoc.id;
+            const tid = `thumb-${vid}`;
+            
             grid.innerHTML += `
-                <a href="watch.html?id=${vDoc.id}" class="v-card">
-                    <img src="${v.thumbnail || ''}" class="thumb">
+                <a href="watch.html?id=${vid}" class="v-card">
+                    <div class="thumb-container">
+                        <img src="" id="${tid}" class="thumb">
+                    </div>
                     <div class="v-title">${v.title}</div>
                     <div style="color:#606060; font-size:12px;">${(v.views || 0).toLocaleString()}回視聴</div>
                 </a>
             `;
+
+            // サムネイル処理の実行
+            setTimeout(() => {
+                const img = document.getElementById(tid);
+                if (v.thumbnail) {
+                    img.src = v.thumbnail;
+                    img.style.opacity = 1;
+                } else {
+                    generateThumb(v.url, img);
+                }
+            }, 100);
         });
     });
+
+    // 自動サムネイル生成の修正版（安定版）
+    function generateThumb(url, imgElement) {
+        const v = document.createElement('video');
+        v.src = url;
+        v.preload = "metadata";
+        v.muted = true;
+        v.crossOrigin = "anonymous";
+        v.playsInline = true;
+
+        v.onloadedmetadata = () => {
+            v.currentTime = 1.0; // 1秒目のフレームを狙う
+        };
+
+        v.onseeked = () => {
+            const c = document.createElement('canvas');
+            c.width = 320;
+            c.height = 180;
+            const ctx = c.getContext('2d');
+            ctx.drawImage(v, 0, 0, c.width, c.height);
+            
+            imgElement.src = c.toDataURL('image/jpeg', 0.8);
+            imgElement.style.opacity = 1;
+
+            v.removeAttribute('src');
+            v.load();
+            v.remove();
+        };
+
+        v.onerror = () => {
+            v.remove();
+        };
+    }
 </script>
 </body>
 </html>
