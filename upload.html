@@ -3,59 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MyTube - 動画投稿</title>
+    <title>動画投稿 - iroTube</title>
     <style>
-        :root { --yt-red: #ff0000; --yt-blue: #065fd4; }
-        body { font-family: "Roboto", Arial, sans-serif; background: #f9f9f9; margin: 0; padding: 20px; display: flex; justify-content: center; }
-        .upload-card { background: white; width: 100%; max-width: 500px; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        h2 { margin-top: 0; color: #0f0f0f; }
-        .form-group { margin-bottom: 20px; }
-        label { display: block; font-weight: bold; margin-bottom: 8px; font-size: 14px; }
-        input[type="text"], input[type="file"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
-        .hint { font-size: 12px; color: #606060; margin-top: 5px; }
+        body { font-family: sans-serif; margin: 0; padding: 20px; background: #fff; }
+        .header-logo { font-size: 24px; font-weight: bold; text-decoration: none; display: flex; align-items: center; margin-bottom: 30px; }
+        .iro { color: #007bff; }
+        .tube { color: #000; background: #ffcc00; padding: 2px 6px; border-radius: 4px; margin-left: 2px; }
         
-        #uploadBtn { 
-            background: var(--yt-blue); color: white; border: none; padding: 12px; 
-            width: 100%; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 16px; margin-top: 10px;
-        }
-        #uploadBtn:disabled { background: #ccc; cursor: not-allowed; }
-        #status { text-align: center; margin-top: 15px; font-weight: bold; color: var(--yt-blue); }
-        .back-link { display: block; text-align: center; margin-top: 20px; text-decoration: none; color: #606060; font-size: 14px; }
+        .upload-card { max-width: 500px; margin: 0 auto; border: 1px solid #eee; padding: 20px; border-radius: 12px; }
+        input, button { width: 100%; padding: 10px; margin-top: 10px; box-sizing: border-box; }
+        button { background: #007bff; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+
+        /* 進捗バーのスタイル */
+        #progressContainer { display: none; margin-top: 20px; text-align: center; }
+        .progress-bg { background: #eee; border-radius: 10px; height: 10px; width: 100%; overflow: hidden; margin-top: 5px; }
+        .progress-bar { background: #007bff; height: 100%; width: 0%; transition: width 0.2s; }
+        #statusText { font-size: 14px; color: #666; }
     </style>
 </head>
 <body>
 
+<a href="index.html" class="header-logo">
+    <span class="iro">iro</span><span class="tube">Tube</span>
+</a>
+
 <div class="upload-card">
     <h2>動画をアップロード</h2>
+    <input type="text" id="title" placeholder="動画のタイトル">
+    <label style="display:block; margin-top:15px; font-size:14px;">動画ファイルを選択:</label>
+    <input type="file" id="videoFile" accept="video/*">
     
-    <div class="form-group">
-        <label>タイトル</label>
-        <input type="text" id="title" placeholder="魅力的なタイトルを入力">
-    </div>
-
-    <div class="form-group">
-        <label>動画ファイル</label>
-        <input type="file" id="videoFile" accept="video/*">
-        <div class="hint">MP4, MOVなどの動画形式に対応</div>
-    </div>
-
-    <div class="form-group">
-        <label>サムネイル画像 (任意)</label>
-        <input type="file" id="thumbFile" accept="image/*">
-        <div class="hint">未選択の場合は動画から自動生成されます</div>
-    </div>
-
     <button id="uploadBtn">投稿する</button>
-    <div id="status"></div>
-    
-    <a href="index.html" class="back-link">ホームに戻る</a>
+
+    <div id="progressContainer">
+        <div id="statusText">準備中... 0%</div>
+        <div class="progress-bg">
+            <div id="progressBar" class="progress-bar"></div>
+        </div>
+    </div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o",
@@ -68,67 +61,58 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-    const auth = getAuth(app);
     const storage = getStorage(app);
+    const auth = getAuth(app);
 
-    let user = null;
-    onAuthStateChanged(auth, u => {
-        if (!u) {
-            alert("ログインが必要です");
-            location.href = 'login.html';
-        }
-        user = u;
+    let currentUser = null;
+    onAuthStateChanged(auth, user => {
+        currentUser = user;
+        if (!user) { alert("ログインが必要です"); location.href = "login.html"; }
     });
 
     document.getElementById('uploadBtn').onclick = async () => {
         const title = document.getElementById('title').value;
-        const vFile = document.getElementById('videoFile').files[0];
-        const tFile = document.getElementById('thumbFile').files[0];
-        const status = document.getElementById('status');
-        const btn = document.getElementById('uploadBtn');
+        const file = document.getElementById('videoFile').files[0];
+        if (!title || !file || !currentUser) return alert("入力が足りません");
 
-        if (!title || !vFile) return alert("タイトルと動画ファイルは必須です！");
+        const btn = document.getElementById('uploadBtn');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const statusText = document.getElementById('statusText');
 
         btn.disabled = true;
-        status.innerText = "アップロード中... (閉じないでください)";
+        progressContainer.style.display = 'block';
 
-        try {
-            // 1. 動画をStorageにアップロード
-            const vName = `${Date.now()}_${vFile.name}`;
-            const vRef = ref(storage, `videos/${vName}`);
-            await uploadBytes(vRef, vFile);
-            const vUrl = await getDownloadURL(vRef);
+        const storageRef = ref(storage, `videos/${Date.now()}_${file.name}`);
+        const uploadTask = uploadBytesResumable(storageRef, file);
 
-            // 2. サムネイルをStorageにアップロード (選択されている場合のみ)
-            let tUrl = "";
-            if (tFile) {
-                const tName = `${Date.now()}_thumb_${tFile.name}`;
-                const tRef = ref(storage, `thumbs/${tName}`);
-                await uploadBytes(tRef, tFile);
-                tUrl = await getDownloadURL(tRef);
+        // アップロードの監視
+        uploadTask.on('state_changed', 
+            (snapshot) => {
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                const roundedProgress = Math.round(progress);
+                progressBar.style.width = roundedProgress + '%';
+                statusText.innerText = `アップロード中... ${roundedProgress}%`;
+            }, 
+            (error) => {
+                console.error(error);
+                alert("アップロードに失敗しました");
+                btn.disabled = false;
+            }, 
+            async () => {
+                // 完了時
+                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                await addDoc(collection(db, "videos"), {
+                    title: title,
+                    url: downloadURL,
+                    userId: currentUser.uid,
+                    views: 0,
+                    createdAt: serverTimestamp()
+                });
+                alert("投稿が完了しました！");
+                location.href = "index.html";
             }
-
-            // 3. Firestoreに情報を保存
-            await addDoc(collection(db, "videos"), {
-                title: title,
-                url: vUrl,
-                thumbnail: tUrl, // 手動設定がなければ空（空なら再生画面等で自動生成される）
-                userId: user.uid,
-                views: 0,
-                likes: 0,
-                createdAt: serverTimestamp()
-            });
-
-            status.innerText = "投稿完了！";
-            alert("動画を公開しました！");
-            location.href = 'index.html';
-
-        } catch (e) {
-            console.error(e);
-            alert("エラーが発生しました: " + e.message);
-            btn.disabled = false;
-            status.innerText = "";
-        }
+        );
     };
 </script>
 </body>
