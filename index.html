@@ -17,6 +17,24 @@
         .u-icon-btn { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; cursor: pointer; background: #eee; border: 1px solid #ddd; }
         .login-btn { background: #007bff; color: #fff; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; text-decoration: none; font-size: 13px; }
 
+        /* プロフィール編集ウィンドウ（モーダル） */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-window { background: #fff; padding: 25px; border-radius: 15px; width: 90%; max-width: 350px; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .modal-window h2 { margin: 0 0 20px; font-size: 18px; }
+        
+        .input-box { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
+        
+        /* 画像選択ボタン（青） */
+        .file-label { display: block; background: #007bff; color: #fff; padding: 10px; border-radius: 5px; cursor: pointer; margin-bottom: 10px; font-size: 14px; }
+        #editIcon { display: none; } /* inputは隠す */
+
+        .warn-text { color: red; font-size: 12px; margin-bottom: 20px; font-weight: bold; }
+
+        /* 保存ボタン（グレー） */
+        .btn-save { background: #666; color: #fff; border: none; padding: 12px 20px; border-radius: 5px; cursor: pointer; width: 100%; font-weight: bold; }
+        .btn-close { background: none; border: none; color: #999; cursor: pointer; margin-top: 15px; font-size: 12px; text-decoration: underline; }
+
+        /* 動画グリッド */
         .v-grid { display: flex; flex-wrap: wrap; gap: 15px; padding: 20px; }
         .v-card { width: 220px; text-decoration: none; color: #000; font-size: 14px; }
         .thumb-container { width: 100%; aspect-ratio: 16/9; background: #eee; border-radius: 8px; overflow: hidden; }
@@ -38,11 +56,26 @@
     </div>
 </header>
 
+<div id="profileModal" class="modal-overlay">
+    <div class="modal-window">
+        <h2>プロフィール変更</h2>
+        <input type="text" id="editName" class="input-box" placeholder="新しい名前">
+        
+        <label for="editIcon" class="file-label">画像を選択</label>
+        <input type="file" id="editIcon" accept="image/*">
+        
+        <p class="warn-text">※強行突破モード：画像はなるべく小さいものを選んでください</p>
+        
+        <button class="btn-save" id="saveProfile">変更を保存</button>
+        <button class="btn-close" id="closeModal">キャンセル</button>
+    </div>
+</div>
+
 <div class="v-grid" id="grid"></div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, query, onSnapshot, orderBy, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, query, onSnapshot, orderBy, doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
@@ -58,83 +91,83 @@
     const db = getFirestore(app);
     const auth = getAuth(app);
 
-    // ログイン状態の監視：アイコン表示とプロフィール変更への導線
+    let currentUser = null;
+
+    // ログイン状態監視
     onAuthStateChanged(auth, async user => {
+        currentUser = user;
         const userArea = document.getElementById('userArea');
         if (user) {
             const uSnap = await getDoc(doc(db, "users", user.uid));
-            const userData = uSnap.data();
-            const iconUrl = userData && userData.icon ? userData.icon : "";
-            // アイコンクリックで profile.html（プロフィール・動画管理）へ
-            userArea.innerHTML = `<img src="${iconUrl}" class="u-icon-btn" onclick="location.href='profile.html'" title="プロフィール/管理">`;
-        } else {
-            userArea.innerHTML = `<a href="login.html" class="login-btn">ログイン</a>`;
+            const ud = uSnap.data();
+            // アイコンを表示。クリックでモーダル（Window）を起動。profile.htmlには飛ばしません。
+            userArea.innerHTML = `<img src="${ud?.icon || ''}" class="u-icon-btn" id="profileIconBtn">`;
+            
+            document.getElementById('profileIconBtn').onclick = () => {
+                document.getElementById('editName').value = ud?.name || "";
+                document.getElementById('profileModal').style.display = 'flex';
+            };
         }
     });
 
-    // 動画一覧の表示
+    // モーダルを閉じる
+    document.getElementById('closeModal').onclick = () => {
+        document.getElementById('profileModal').style.display = 'none';
+    };
+
+    // 保存処理（その場でFirestoreを更新してリロード）
+    document.getElementById('saveProfile').onclick = async () => {
+        if (!currentUser) return;
+        const btn = document.getElementById('saveProfile');
+        btn.innerText = "保存中...";
+        btn.disabled = true;
+
+        const newName = document.getElementById('editName').value;
+        const fileInput = document.getElementById('editIcon');
+        const updates = { name: newName };
+
+        if (fileInput.files[0]) {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                updates.icon = e.target.result;
+                await updateDoc(doc(db, "users", currentUser.uid), updates);
+                location.reload(); // 保存後、今のページを更新
+            };
+            reader.readAsDataURL(fileInput.files[0]);
+        } else {
+            await updateDoc(doc(db, "users", currentUser.uid), updates);
+            location.reload();
+        }
+    };
+
+    // 動画表示と「真っ黒にならない」安定版サムネイルロジック
     onSnapshot(query(collection(db, "videos"), orderBy("createdAt", "desc")), snap => {
         const grid = document.getElementById('grid');
         grid.innerHTML = "";
         snap.forEach(vDoc => {
             const v = vDoc.data();
-            const vid = vDoc.id;
-            const tid = `thumb-${vid}`;
-            
-            grid.innerHTML += `
-                <a href="watch.html?id=${vid}" class="v-card">
-                    <div class="thumb-container">
-                        <img src="" id="${tid}" class="thumb">
-                    </div>
-                    <div class="v-title">${v.title}</div>
-                    <div style="color:#606060; font-size:12px;">${(v.views || 0).toLocaleString()}回視聴</div>
-                </a>
-            `;
-
-            // サムネイル処理の実行
+            const tid = `thumb-${vDoc.id}`;
+            grid.innerHTML += `<a href="watch.html?id=${vDoc.id}" class="v-card"><div class="thumb-container"><img src="" id="${tid}" class="thumb"></div><div class="v-title">${v.title}</div><div style="color:#606060; font-size:12px;">${(v.views || 0).toLocaleString()}回視聴</div></a>`;
             setTimeout(() => {
                 const img = document.getElementById(tid);
-                if (v.thumbnail) {
-                    img.src = v.thumbnail;
-                    img.style.opacity = 1;
-                } else {
-                    generateThumb(v.url, img);
-                }
+                if (v.thumbnail) { img.src = v.thumbnail; img.style.opacity = 1; } 
+                else { generateThumb(v.url, img); }
             }, 100);
         });
     });
 
-    // 自動サムネイル生成の修正版（安定版）
     function generateThumb(url, imgElement) {
         const v = document.createElement('video');
-        v.src = url;
-        v.preload = "metadata";
-        v.muted = true;
-        v.crossOrigin = "anonymous";
-        v.playsInline = true;
-
-        v.onloadedmetadata = () => {
-            v.currentTime = 1.0; // 1秒目のフレームを狙う
-        };
-
+        v.src = url; v.preload = "metadata"; v.muted = true; v.crossOrigin = "anonymous"; v.playsInline = true;
+        v.onloadedmetadata = () => { v.currentTime = 1.0; };
         v.onseeked = () => {
-            const c = document.createElement('canvas');
-            c.width = 320;
-            c.height = 180;
-            const ctx = c.getContext('2d');
-            ctx.drawImage(v, 0, 0, c.width, c.height);
-            
+            const c = document.createElement('canvas'); c.width = 320; c.height = 180;
+            c.getContext('2d').drawImage(v, 0, 0, 320, 180);
             imgElement.src = c.toDataURL('image/jpeg', 0.8);
             imgElement.style.opacity = 1;
-
-            v.removeAttribute('src');
-            v.load();
-            v.remove();
+            v.removeAttribute('src'); v.load(); v.remove();
         };
-
-        v.onerror = () => {
-            v.remove();
-        };
+        v.onerror = () => { v.remove(); };
     }
 </script>
 </body>
