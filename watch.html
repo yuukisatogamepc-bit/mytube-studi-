@@ -13,6 +13,7 @@
         .video-container { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 12px; overflow: hidden; }
         video { width: 100%; height: 100%; }
         .v-title { font-size: 20px; font-weight: bold; margin: 12px 0; }
+        .v-meta { font-size: 14px; color: var(--yt-gray); margin-bottom: 12px; } /* 視聴回数用 */
         .channel-info { display: flex; align-items: center; gap: 12px; margin: 15px 0; }
         .c-icon { width: 40px; height: 40px; border-radius: 50%; cursor: pointer; object-fit: cover; background: #eee; }
         .actions { display: flex; gap: 8px; margin-bottom: 20px; }
@@ -39,7 +40,7 @@
     <div class="video-side">
         <div class="video-container"><video id="player" controls autoplay></video></div>
         <div class="v-title" id="vTitle">読み込み中...</div>
-        <div class="channel-info">
+        <div class="v-meta"><span id="vViews">0</span> 回視聴</div> <div class="channel-info">
             <img id="cIcon" class="c-icon" src="">
             <div id="cJump" style="flex-grow:1; cursor:pointer;">
                 <div id="cName" style="font-weight:bold;">---</div>
@@ -91,12 +92,21 @@
 
     async function loadVideo() {
         const vRef = doc(db, "videos", vId);
-        updateDoc(vRef, { views: increment(1) });
+
+        // --- 修正：リロード重複カウント防止ロジック ---
+        const viewedTag = `viewed_${vId}`;
+        if (!sessionStorage.getItem(viewedTag)) {
+            await updateDoc(vRef, { views: increment(1) });
+            sessionStorage.setItem(viewedTag, "true");
+        }
+
         onSnapshot(vRef, async snap => {
             const vd = snap.data(); authorId = vd.userId;
             document.getElementById('player').src = vd.url;
             document.getElementById('vTitle').innerText = vd.title;
             document.getElementById('vLikes').innerText = vd.likes || 0;
+            document.getElementById('vViews').innerText = (vd.views || 0).toLocaleString(); // 表示復活
+            
             onSnapshot(doc(db, "users", authorId), uSnap => {
                 const ud = uSnap.data();
                 document.getElementById('cName').innerText = ud?.name || "不明";
@@ -113,7 +123,6 @@
         });
     }
 
-    // チャンネル登録ボタンの処理
     document.getElementById('subBtn').onclick = async () => {
         if (!user) return alert("ログインしてください");
         if (authorId === user.uid) return alert("自分は登録できません");
@@ -137,7 +146,6 @@
         }
     }
 
-    // 高評価、コメント、返信、関連動画（以前のコードを維持）
     document.getElementById('likeBtn').onclick = async () => {
         if(!user) return; const lRef = doc(db, "videos", vId, "likes", user.uid); const vRef = doc(db, "videos", vId);
         const lSnap = await getDoc(lRef); if(lSnap.exists()){ await deleteDoc(lRef); await updateDoc(vRef, { likes: increment(-1) }); }
