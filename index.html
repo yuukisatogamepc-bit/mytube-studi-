@@ -3,63 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iroTube - ホーム</title>
+    <title>iroTube</title>
     <style>
-        :root { --iro-blue: #007bff; --tube-yellow: #ffcc00; --yt-bg: #fff; --yt-gray: #606060; }
-        body { font-family: "Roboto", Arial, sans-serif; margin: 0; background: var(--yt-bg); color: #0f0f0f; }
-
-        /* ヘッダーデザイン */
-        header { 
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 10px 20px; position: sticky; top: 0; background: #fff; z-index: 100;
-        }
-        .header-logo { font-size: 24px; font-weight: bold; cursor: pointer; text-decoration: none; }
-        .logo-iro { color: var(--iro-blue); }
-        .logo-tube { color: #000; background: var(--tube-yellow); padding: 2px 6px; border-radius: 4px; margin-left: 2px; }
-
-        .btn-upload { background: #f2f2f2; border: none; padding: 8px 16px; border-radius: 20px; font-weight: bold; cursor: pointer; text-decoration: none; color: #000; font-size: 14px; }
-        .btn-upload:hover { background: #e5e5e5; }
-
-        /* 動画グリッド */
-        .v-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 20px;
-            padding: 20px;
-            max-width: 1500px;
-            margin: 0 auto;
-        }
-        .v-card { text-decoration: none; color: inherit; display: block; }
-        .thumb-box { 
-            width: 100%; aspect-ratio: 16/9; border-radius: 12px; 
-            background: #eee; overflow: hidden; position: relative; 
-        }
-        .thumb-img { width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.3s; }
+        body { font-family: sans-serif; margin: 0; background: #fff; }
+        header { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; border-bottom: 1px solid #eee; position: sticky; top: 0; background: #fff; z-index: 100; }
         
-        .v-info { display: flex; gap: 12px; margin-top: 12px; }
-        .u-icon { width: 36px; height: 36px; border-radius: 50%; background: #eee; flex-shrink: 0; object-fit: cover; }
-        .v-details { min-width: 0; }
-        .v-title { font-weight: bold; font-size: 16px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 4px; }
-        .v-meta { font-size: 14px; color: var(--yt-gray); }
+        /* ロゴデザイン */
+        .logo { font-size: 20px; font-weight: bold; text-decoration: none; display: flex; align-items: center; }
+        .iro { color: #007bff; }
+        .tube { color: #000; background: #ffcc00; padding: 2px 5px; border-radius: 4px; margin-left: 2px; }
+        
+        .header-right { display: flex; align-items: center; gap: 15px; }
+        .u-icon-btn { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; cursor: pointer; background: #eee; border: 1px solid #ddd; }
+        .login-btn { background: #007bff; color: #fff; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; text-decoration: none; font-size: 13px; }
 
-        @media (max-width: 500px) { .v-grid { grid-template-columns: 1fr; } }
+        .v-grid { display: flex; flex-wrap: wrap; gap: 15px; padding: 20px; }
+        .v-card { width: 220px; text-decoration: none; color: #000; font-size: 14px; }
+        .thumb { width: 100%; aspect-ratio: 16/9; background: #eee; border-radius: 8px; object-fit: cover; }
+        .v-title { font-weight: bold; margin-top: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     </style>
 </head>
 <body>
 
 <header>
-    <a href="index.html" class="header-logo">
-        <span class="logo-iro">iro</span><span class="logo-tube">Tube</span>
+    <a href="index.html" class="logo">
+        <span class="iro">iro</span><span class="tube">Tube</span>
     </a>
-    <a href="upload.html" class="btn-upload">動画を投稿</a>
+    <div class="header-right">
+        <a href="upload.html" style="text-decoration:none; color:#000; font-size:14px;">投稿</a>
+        <div id="userArea">
+            <a href="login.html" class="login-btn">ログイン</a>
+        </div>
+    </div>
 </header>
 
-<div class="v-grid" id="videoGrid">
-    </div>
+<div class="v-grid" id="grid"></div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, query, orderBy, onSnapshot, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, query, onSnapshot, orderBy, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o",
@@ -72,74 +55,38 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+    const auth = getAuth(app);
 
-    function loadAllVideos() {
-        const q = query(collection(db, "videos"), orderBy("createdAt", "desc"));
-        onSnapshot(q, snap => {
-            const grid = document.getElementById('videoGrid');
-            grid.innerHTML = "";
-            snap.forEach(vDoc => {
-                const vd = vDoc.data();
-                const vid = vDoc.id;
-                const tid = `thumb-${vid}`;
-                const uid = `uicon-${vid}`;
+    // ログイン状態の監視
+    onAuthStateChanged(auth, async user => {
+        const userArea = document.getElementById('userArea');
+        if (user) {
+            // ログイン中：ユーザーのアイコンを取得してプロフィールページへのリンクを表示
+            const uSnap = await getDoc(doc(db, "users", user.uid));
+            const userData = uSnap.data();
+            const iconUrl = userData && userData.icon ? userData.icon : ""; // Base64アイコン対応
+            userArea.innerHTML = `<img src="${iconUrl}" class="u-icon-btn" onclick="location.href='profile.html'" title="プロフィールを変更">`;
+        } else {
+            // 未ログイン：ログインボタンを表示
+            userArea.innerHTML = `<a href="login.html" class="login-btn">ログイン</a>`;
+        }
+    });
 
-                const card = document.createElement('a');
-                card.className = "v-card";
-                card.href = `watch.html?id=${vid}`;
-                card.innerHTML = `
-                    <div class="thumb-box"><img src="" id="${tid}" class="thumb-img"></div>
-                    <div class="v-info">
-                        <img src="" id="${uid}" class="u-icon">
-                        <div class="v-details">
-                            <div class="v-title">${vd.title}</div>
-                            <div class="v-meta" id="meta-${vid}">読み込み中...</div>
-                        </div>
-                    </div>
-                `;
-                grid.appendChild(card);
-
-                // 投稿者情報と視聴回数の取得
-                getDoc(doc(db, "users", vd.userId)).then(uSnap => {
-                    const ud = uSnap.data();
-                    if(ud) {
-                        document.getElementById(uid).src = ud.icon || "";
-                        document.getElementById(`meta-${vid}`).innerText = `${ud.name} • ${(vd.views || 0).toLocaleString()} 回視聴`;
-                    }
-                });
-
-                // サムネイル処理
-                setTimeout(() => {
-                    const img = document.getElementById(tid);
-                    if(vd.thumbnail) {
-                        img.src = vd.thumbnail;
-                        img.style.opacity = 1;
-                    } else {
-                        generateThumb(vd.url, img);
-                    }
-                }, 100);
-            });
+    // 動画一覧の取得
+    onSnapshot(query(collection(db, "videos"), orderBy("createdAt", "desc")), snap => {
+        const grid = document.getElementById('grid');
+        grid.innerHTML = "";
+        snap.forEach(vDoc => {
+            const v = vDoc.data();
+            grid.innerHTML += `
+                <a href="watch.html?id=${vDoc.id}" class="v-card">
+                    <img src="${v.thumbnail || ''}" class="thumb">
+                    <div class="v-title">${v.title}</div>
+                    <div style="color:#606060; font-size:12px;">${(v.views || 0).toLocaleString()}回視聴</div>
+                </a>
+            `;
         });
-    }
-
-    function generateThumb(url, imgElement) {
-        const video = document.createElement('video');
-        video.src = url;
-        video.preload = "auto";
-        video.muted = true;
-        video.crossOrigin = "anonymous";
-        video.onloadeddata = () => video.currentTime = 1.0;
-        video.onseeked = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = 320;
-            canvas.height = 180;
-            canvas.getContext('2d').drawImage(video, 0, 0, 320, 180);
-            imgElement.src = canvas.toDataURL('image/jpeg');
-            imgElement.style.opacity = 1;
-        };
-    }
-
-    loadAllVideos();
+    });
 </script>
 </body>
 </html>
