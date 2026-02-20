@@ -9,12 +9,17 @@
         body { font-family: "Roboto", Arial, sans-serif; margin: 0; background: var(--yt-bg); color: var(--yt-text); }
         header { display: flex; align-items: center; padding: 10px 15px; background: var(--yt-bg); border-bottom: 1px solid #ddd; position: sticky; top: 0; z-index: 100; }
         .logo { color: #ff0000; font-size: 20px; font-weight: bold; cursor: pointer; text-decoration: none; }
-        .main-container { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1fr 350px; gap: 20px; padding: 15px; }
-        @media (max-width: 1000px) { .main-container { grid-template-columns: 1fr; padding: 0; } .video-section video { border-radius: 0; } .video-title, .stats-bar, .channel-info, .comment-section { padding: 0 15px; } }
-        .video-section video { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 12px; }
-        #adminPanel { display: none; background: #f9f9f9; color: #b8860b; padding: 15px; border-radius: 12px; margin: 10px; border: 1px solid gold; }
         
-        /* ★ボタンが縦に折れないように修正 */
+        .main-container { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1fr 350px; gap: 20px; padding: 15px; }
+        @media (max-width: 1000px) { 
+            .main-container { grid-template-columns: 1fr; padding: 0; } 
+            .video-section video { border-radius: 0; } 
+            .video-title, .stats-bar, .channel-info, .comment-section { padding: 0 15px; } 
+        }
+
+        .video-section video { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 12px; }
+        
+        /* ボタン基本スタイル */
         .yt-btn { 
             background: var(--yt-card); 
             border: none; 
@@ -23,39 +28,54 @@
             font-weight: bold; 
             cursor: pointer; 
             font-size: 13px;
-            white-space: nowrap; /* 文字が勝手に改行されないように固定 */
-            min-width: fit-content; /* 中身の幅に合わせる */
+            white-space: nowrap; /* 改行防止 */
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
-        
-        .sub-btn { background: #0f0f0f; color: #fff; border-radius: 20px; padding: 8px 16px; border: none; font-weight: bold; margin-left: auto; cursor: pointer; }
-        .sub-btn.subscribed { background: #eee; color: #606060; }
-        
-        /* コメント投稿部分：横並び */
-        .comment-input-area { display: flex; align-items: center; gap: 12px; margin-bottom: 30px; }
-        .comment-input-area input { flex: 1; border: none; border-bottom: 1px solid #ddd; outline: none; padding: 8px 0; font-size: 14px; background: transparent; }
-        .comment-input-area button { flex-shrink: 0; } /* ボタンが潰れないように設定 */
+
+        /* ★コメント投稿欄のレイアウト修正 */
+        .comment-input-area { 
+            display: flex; 
+            align-items: flex-end; /* 下揃えで入力線とボタンの高さを合わせる */
+            gap: 12px; 
+            margin-bottom: 30px; 
+            width: 100%;
+        }
+        .comment-input-area input { 
+            flex: 1; /* 入力欄を限界まで広げる */
+            border: none; 
+            border-bottom: 1px solid #ddd; 
+            outline: none; 
+            padding: 8px 0; 
+            font-size: 14px; 
+            background: transparent;
+            min-width: 0; /* flex内のinput崩れ防止 */
+        }
+        .comment-input-area button { 
+            flex-shrink: 0; /* ボタンが潰れるのを防ぐ */
+        }
 
         .comment-item { display: flex; gap: 10px; margin-bottom: 20px; }
-        .c-icon { width: 32px; height: 32px; border-radius: 50%; }
+        .c-icon { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
         .c-actions { font-size: 12px; color: var(--yt-gray); margin-top: 5px; cursor: pointer; display: flex; gap: 10px; }
         .reply-list { margin-left: 40px; margin-top: 10px; border-left: 2px solid #eee; padding-left: 10px; }
         .reply-box, .edit-box { display: none; margin-top: 10px; }
-        .reply-box input, .edit-box input { width: 100%; border: none; border-bottom: 1px solid #ddd; outline: none; margin-bottom: 5px; background: transparent; }
     </style>
 </head>
 <body>
 <header><a href="index.html" class="logo">MyTube</a></header>
 <div class="main-container">
     <div class="video-section">
-        <div id="adminPanel">👑 管理: 再生 <input type="number" id="admViews"> 評価 <input type="number" id="admLikes"> 登録 <input type="number" id="admSubs"> <button onclick="adminSave()">保存</button></div>
         <video id="player" controls playsinline autoplay></video>
         <h2 class="video-title" id="vTitle">...</h2>
         <div class="stats-bar"><div class="v-meta"><span id="vViews">0</span>回視聴</div><button class="yt-btn" id="likeBtn">👍 <span id="vLikes">0</span></button></div>
         <div class="channel-info">
             <img src="" class="channel-icon" id="cIcon" onclick="toChannel()" style="width:40px; height:40px; border-radius:50%;">
             <div><div id="cName" style="font-weight:bold;" onclick="toChannel()">...</div><div id="cSubs" style="font-size:12px; color:var(--yt-gray);">...</div></div>
-            <button class="sub-btn" id="subBtn">チャンネル登録</button>
+            <button class="sub-btn" style="background:#0f0f0f; color:#fff; border-radius:20px; padding:8px 16px; border:none; font-weight:bold; margin-left:auto; cursor:pointer;" id="subBtn">チャンネル登録</button>
         </div>
+        
         <div class="comment-section">
             <div class="comment-input-area">
                 <input type="text" id="commentInput" placeholder="コメントを入力...">
@@ -68,7 +88,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where, addDoc, deleteDoc, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, updateDoc, onSnapshot, collection, query, where, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
@@ -126,7 +146,7 @@
                     <div id="t-${c.id}">${c.text}</div>
                     <div class="edit-box" id="eb-${c.id}"><input type="text" id="ei-${c.id}" value="${c.text}"><button class="yt-btn" onclick="saveEdit('${c.id}')">保存</button></div>
                     <div class="c-actions"><span onclick="showReply('${c.id}')">返信</span>${user && user.uid===c.userId?`<span onclick="showEdit('${c.id}')">編集</span>`:''}</div>
-                    <div class="reply-box" id="rb-${c.id}"><input type="text" id="ri-${c.id}" placeholder="返信を入力..."><button class="yt-btn" onclick="sendReply('${c.id}')">返信</button></div>
+                    <div class="reply-box" id="rb-${c.id}" style="display:none; margin-top:10px;"><div style="display:flex; gap:10px;"><input type="text" id="ri-${c.id}" style="flex:1; border:none; border-bottom:1px solid #ddd; outline:none;" placeholder="返信..."><button class="yt-btn" onclick="sendReply('${c.id}')">返信</button></div></div>
                     <div class="reply-list">${all.filter(r=>r.parentId===c.id).map(r=>`<div style="display:flex; gap:10px; margin-top:10px;"><img src="${r.userIcon}" style="width:24px;height:24px;border-radius:50%;"><div><div style="font-weight:bold;font-size:12px;">${r.userName}</div><div>${r.text}</div></div></div>`).join('')}</div></div>
                 `;
                 list.appendChild(div);
@@ -137,7 +157,7 @@
     window.showReply = id => { const el = document.getElementById(`rb-${id}`); el.style.display = el.style.display==='block'?'none':'block'; };
     window.sendReply = id => sendComment("", id);
     window.showEdit = id => { document.getElementById(`t-${id}`).style.display='none'; document.getElementById(`eb-${id}`).style.display='block'; };
-    window.saveEdit = async id => { await updateDoc(doc(db, "comments", id), { text: document.getElementById(`ei-${id}`).value }); document.getElementById(`t-${id}`).style.display='block'; document.getElementById(`eb-${id}`).style.display='none'; };
+    window.saveEdit = async id => { await updateDoc(doc(db, "comments", id), { text: document.getElementById(`ei-${id}`).value }); location.reload(); };
     window.toChannel = () => location.href = `channel.html?uid=${authorId}`;
 </script>
 </body>
