@@ -15,7 +15,6 @@
         button { background: #007bff; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
         button:disabled { background: #ccc; cursor: not-allowed; }
 
-        /* 進捗バーのスタイル */
         #progressContainer { display: none; margin-top: 20px; text-align: center; }
         .progress-bg { background: #eee; border-radius: 10px; height: 10px; width: 100%; overflow: hidden; margin-top: 5px; }
         .progress-bar { background: #007bff; height: 100%; width: 0%; transition: width 0.2s; }
@@ -29,7 +28,7 @@
 </a>
 
 <div class="upload-card">
-    <h2>動画をアップロード</h2>
+    <h2>動画をアップロード (Cloudinary)</h2>
     <input type="text" id="title" placeholder="動画のタイトル">
     <label style="display:block; margin-top:15px; font-size:14px;">動画ファイルを選択:</label>
     <input type="file" id="videoFile" accept="video/*">
@@ -37,7 +36,7 @@
     <button id="uploadBtn">投稿する</button>
 
     <div id="progressContainer">
-        <div id="statusText">準備中... 0%</div>
+        <div id="statusText">アップロード中... 0%</div>
         <div class="progress-bg">
             <div id="progressBar" class="progress-bar"></div>
         </div>
@@ -47,8 +46,12 @@
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-    import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+    // --- 設定ここから ---
+    const CLOUD_NAME = "あなたのCloud Nameをここに入れる";
+    const UPLOAD_PRESET = "あなたのUpload Preset名をここに入れる";
+    // --- 設定ここまで ---
 
     const firebaseConfig = {
         apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o",
@@ -61,76 +64,78 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-    const storage = getStorage(app);
     const auth = getAuth(app);
 
     let currentUser = null;
     onAuthStateChanged(auth, user => {
         currentUser = user;
-        if (!user) {
-            alert("ログインが必要です");
-            location.href = "login.html";
-        }
+        if (!user) { alert("ログインが必要です"); location.href = "login.html"; }
     });
 
     document.getElementById('uploadBtn').onclick = async () => {
         const title = document.getElementById('title').value;
         const file = document.getElementById('videoFile').files[0];
         
-        if (!title || !file) return alert("タイトルとファイルを選択してください");
-        if (!currentUser) return alert("ログインが確認できません。再ログインしてください");
+        if (!title || !file) return alert("入力が足りません");
+        if (CLOUD_NAME === "あなたのCloud Nameをここに入れる") return alert("Cloudinaryの設定を入力してください");
 
         const btn = document.getElementById('uploadBtn');
         const progressContainer = document.getElementById('progressContainer');
         const progressBar = document.getElementById('progressBar');
         const statusText = document.getElementById('statusText');
 
-        // UIをアップロード中モードに切り替え
         btn.disabled = true;
         progressContainer.style.display = 'block';
 
-        try {
-            // ファイル名を安全な形に生成
-            const fileName = `${Date.now()}_${currentUser.uid}`;
-            const storageRef = ref(storage, 'videos/' + fileName);
-            
-            // アップロードタスク作成（Resumable版）
-            const uploadTask = uploadBytesResumable(storageRef, file);
+        // Cloudinaryへアップロード (XMLHttpRequestを使用して進捗を取得)
+        const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`;
+        const xhr = new XMLHttpRequest();
+        const formData = new FormData();
 
-            uploadTask.on('state_changed', 
-                (snapshot) => {
-                    // 進行状況の計算
-                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                    const roundedProgress = Math.round(progress);
-                    progressBar.style.width = roundedProgress + '%';
-                    statusText.innerText = `アップロード中... ${roundedProgress}%`;
-                }, 
-                (error) => {
-                    console.error("Upload Error:", error);
-                    alert("アップロードに失敗しました: " + error.message);
-                    btn.disabled = false;
-                }, 
-                async () => {
-                    // 完了後の処理
-                    const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                    
-                    await addDoc(collection(db, "videos"), {
-                        title: title,
-                        url: downloadURL,
-                        userId: currentUser.uid,
-                        views: 0,
-                        createdAt: serverTimestamp()
-                    });
-                    
-                    alert("投稿が完了しました！");
-                    location.href = "index.html";
-                }
-            );
-        } catch (err) {
-            console.error("System Error:", err);
-            alert("エラーが発生しました: " + err.message);
+        formData.append('file', file);
+        formData.append('upload_preset', UPLOAD_PRESET);
+
+        xhr.open('POST', url, true);
+
+        // 進捗状況の更新
+        xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+                const progress = Math.round((e.loaded / e.total) * 100);
+                progressBar.style.width = progress + '%';
+                statusText.innerText = `アップロード中... ${progress}%`;
+            }
+        };
+
+        xhr.onload = async () => {
+            if (xhr.status === 200) {
+                const response = JSON.parse(xhr.responseText);
+                const videoUrl = response.secure_url; // 動画のURL
+                const thumbUrl = videoUrl.replace(/\.[^/.]+$/, ".jpg"); // 自動サムネイルURL作成
+
+                // Firestoreへ登録
+                await addDoc(collection(db, "videos"), {
+                    title: title,
+                    url: videoUrl,
+                    thumbnail: thumbUrl,
+                    userId: currentUser.uid,
+                    views: 0,
+                    createdAt: serverTimestamp()
+                });
+
+                alert("投稿が完了しました！");
+                location.href = "index.html";
+            } else {
+                alert("Cloudinaryへのアップロードに失敗しました");
+                btn.disabled = false;
+            }
+        };
+
+        xhr.onerror = () => {
+            alert("通信エラーが発生しました");
             btn.disabled = false;
-        }
+        };
+
+        xhr.send(formData);
     };
 </script>
 </body>
