@@ -24,7 +24,6 @@
         .admin-del { background: #ff4d4d; color: #fff; display: none; margin-left: 10px; }
         .edit-num { cursor: pointer; text-decoration: underline dotted; }
 
-        /* コメント・返信スタイル */
         .comment-section { margin-top: 30px; border-top: 1px solid #eee; pt: 20px; }
         .comment-input { width: 100%; padding: 10px; border: none; border-bottom: 1px solid #ddd; margin-bottom: 10px; outline: none; }
         .comment-item { margin-bottom: 20px; font-size: 14px; }
@@ -32,6 +31,9 @@
         .reply-list { margin-left: 50px; margin-top: 10px; border-left: 2px solid #eee; padding-left: 10px; }
         .reply-btn { font-size: 12px; color: #606060; cursor: pointer; background: none; border: none; padding: 5px; margin-top: 5px; }
         .reply-input-area { margin-left: 50px; display: none; margin-top: 5px; }
+        
+        /* [運営]バッジのスタイル */
+        .admin-badge { color: #cc0000; font-weight: bold; margin-left: 4px; }
     </style>
 </head>
 <body>
@@ -116,7 +118,6 @@
             document.getElementById('subNum').innerText = uSnap.data().subscribers || 0;
         }
 
-        // 高評価・登録ボタン (前回のロジック維持)
         document.getElementById('likeBtn').onclick = async () => {
             if(!currentUser) return alert("ログインしてね");
             const btn = document.getElementById('likeBtn');
@@ -143,7 +144,7 @@
             document.getElementById('subNum').innerText = fresh.data().subscribers;
         };
 
-        // コメント読み込み (復活 ＆ 返信対応)
+        // コメント読み込み
         const cCol = collection(db, "videos", vid, "comments");
         onSnapshot(query(cCol, orderBy("createdAt", "desc")), snap => {
             document.getElementById('commentHeader').innerText = `コメント ${snap.size}件`;
@@ -152,11 +153,14 @@
             snap.forEach(d => {
                 const c = d.data();
                 const cid = d.id;
+                // [運営]タグの判定
+                const adminTag = (c.userId === ADMIN_UID) ? '<span class="admin-badge">[運営]</span>' : '';
+                
                 const div = document.createElement('div');
                 div.className = "comment-item";
                 div.innerHTML = `
                     <div class="comment-main">
-                        <strong>${c.userName || '匿名'}</strong>: ${c.text}
+                        <strong>${c.userName || '匿名'}${adminTag}</strong>: ${c.text}
                     </div>
                     <button class="reply-btn" onclick="toggleReply('${cid}')">返信</button>
                     <div id="reply-area-${cid}" class="reply-input-area">
@@ -166,17 +170,16 @@
                 `;
                 list.appendChild(div);
 
-                // 返信のリアルタイム読み込み
                 onSnapshot(query(collection(db, "videos", vid, "comments", cid, "replies"), orderBy("createdAt", "asc")), rSnap => {
                     const rList = document.getElementById(`replies-${cid}`);
                     rList.innerHTML = "";
                     rSnap.forEach(rd => {
                         const r = rd.data();
-                        rList.innerHTML += `<div><strong>${r.userName}</strong>: ${r.text}</div>`;
+                        const rAdminTag = (r.userId === ADMIN_UID) ? '<span class="admin-badge">[運営]</span>' : '';
+                        rList.innerHTML += `<div><strong>${r.userName}${rAdminTag}</strong>: ${r.text}</div>`;
                     });
                 });
 
-                // 返信入力イベント
                 document.getElementById(`input-${cid}`).onkeypress = async (e) => {
                     if (e.key === 'Enter' && currentUser && e.target.value.trim()) {
                         const mySnap = await getDoc(doc(db, "users", currentUser.uid));
@@ -193,7 +196,6 @@
             });
         });
 
-        // 親コメント投稿
         document.getElementById('commentInput').onkeypress = async (e) => {
             if (e.key === 'Enter' && currentUser && e.target.value.trim()) {
                 const mySnap = await getDoc(doc(db, "users", currentUser.uid));
@@ -210,7 +212,6 @@
         updateDoc(vRef, { views: increment(1) });
     }
 
-    // 返信入力欄の表示切り替え
     window.toggleReply = (cid) => {
         const area = document.getElementById(`reply-area-${cid}`);
         area.style.display = area.style.display === "block" ? "none" : "block";
