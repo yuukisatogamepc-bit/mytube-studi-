@@ -67,52 +67,70 @@
     let currentUser = null;
     onAuthStateChanged(auth, user => {
         currentUser = user;
-        if (!user) { alert("ログインが必要です"); location.href = "login.html"; }
+        if (!user) {
+            alert("ログインが必要です");
+            location.href = "login.html";
+        }
     });
 
     document.getElementById('uploadBtn').onclick = async () => {
         const title = document.getElementById('title').value;
         const file = document.getElementById('videoFile').files[0];
-        if (!title || !file || !currentUser) return alert("入力が足りません");
+        
+        if (!title || !file) return alert("タイトルとファイルを選択してください");
+        if (!currentUser) return alert("ログインが確認できません。再ログインしてください");
 
         const btn = document.getElementById('uploadBtn');
         const progressContainer = document.getElementById('progressContainer');
         const progressBar = document.getElementById('progressBar');
         const statusText = document.getElementById('statusText');
 
+        // UIをアップロード中モードに切り替え
         btn.disabled = true;
         progressContainer.style.display = 'block';
 
-        const storageRef = ref(storage, `videos/${Date.now()}_${file.name}`);
-        const uploadTask = uploadBytesResumable(storageRef, file);
+        try {
+            // ファイル名を安全な形に生成
+            const fileName = `${Date.now()}_${currentUser.uid}`;
+            const storageRef = ref(storage, 'videos/' + fileName);
+            
+            // アップロードタスク作成（Resumable版）
+            const uploadTask = uploadBytesResumable(storageRef, file);
 
-        // アップロードの監視
-        uploadTask.on('state_changed', 
-            (snapshot) => {
-                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                const roundedProgress = Math.round(progress);
-                progressBar.style.width = roundedProgress + '%';
-                statusText.innerText = `アップロード中... ${roundedProgress}%`;
-            }, 
-            (error) => {
-                console.error(error);
-                alert("アップロードに失敗しました");
-                btn.disabled = false;
-            }, 
-            async () => {
-                // 完了時
-                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                await addDoc(collection(db, "videos"), {
-                    title: title,
-                    url: downloadURL,
-                    userId: currentUser.uid,
-                    views: 0,
-                    createdAt: serverTimestamp()
-                });
-                alert("投稿が完了しました！");
-                location.href = "index.html";
-            }
-        );
+            uploadTask.on('state_changed', 
+                (snapshot) => {
+                    // 進行状況の計算
+                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                    const roundedProgress = Math.round(progress);
+                    progressBar.style.width = roundedProgress + '%';
+                    statusText.innerText = `アップロード中... ${roundedProgress}%`;
+                }, 
+                (error) => {
+                    console.error("Upload Error:", error);
+                    alert("アップロードに失敗しました: " + error.message);
+                    btn.disabled = false;
+                }, 
+                async () => {
+                    // 完了後の処理
+                    const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                    
+                    await addDoc(collection(db, "videos"), {
+                        title: title,
+                        url: downloadURL,
+                        userId: currentUser.uid,
+                        views: 0,
+                        createdAt: serverTimestamp()
+                    });
+                    
+                    alert("投稿が完了しました！");
+                    location.href = "index.html";
+                }
+            );
+        } catch (err) {
+            console.error("System Error:", err);
+            alert("エラーが発生しました: " + err.message);
+            btn.disabled = false;
+        }
     };
 </script>
 </body>
