@@ -5,30 +5,42 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MyTube - 再生</title>
     <style>
-        body { font-family: "Roboto", Arial, sans-serif; margin: 0; background: #fff; display: flex; flex-direction: column; }
-        .main-layout { max-width: 1200px; margin: 0 auto; display: flex; gap: 20px; padding: 20px; flex-wrap: wrap; }
-        .video-side { flex: 2; min-width: 300px; }
-        .recommend-side { flex: 1; min-width: 300px; }
-        
+        body { font-family: "Roboto", Arial, sans-serif; margin: 0; background: #fff; }
+        /* レイアウト修正：動画を左、関連動画を右にしっかり分ける */
+        .main-layout { max-width: 1280px; margin: 0 auto; display: flex; gap: 24px; padding: 20px; }
+        .video-side { flex: 1; min-width: 0; } /* min-width: 0 は崩れ防止 */
+        .recommend-side { width: 350px; flex-shrink: 0; }
+
         .video-container { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 12px; overflow: hidden; }
         video { width: 100%; height: 100%; }
         
         .v-title { font-size: 20px; font-weight: bold; margin: 12px 0; }
-        .channel-info { display: flex; align-items: center; gap: 12px; margin: 15px 0; padding: 10px 0; border-top: 1px solid #eee; border-bottom: 1px solid #eee; }
+        .channel-info { display: flex; align-items: center; gap: 12px; margin: 15px 0; }
         .c-icon { width: 40px; height: 40px; border-radius: 50%; cursor: pointer; object-fit: cover; background: #eee; }
-        .btn { background: #f2f2f2; border: none; padding: 8px 16px; border-radius: 20px; font-weight: bold; cursor: pointer; }
+        
+        /* ボタン類 */
+        .actions { display: flex; gap: 8px; margin-bottom: 20px; }
+        .btn { background: #f2f2f2; border: none; padding: 8px 16px; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 14px; }
         .btn.active { background: #000; color: #fff; }
 
-        /* コメント欄 */
-        .comment-box { margin-top: 20px; }
-        .comment-input { width: 100%; padding: 10px; border: none; border-bottom: 1px solid #ccc; margin-bottom: 10px; outline: none; }
-        .comment-item { display: flex; gap: 10px; margin-bottom: 15px; align-items: flex-start; }
-        .comment-text { font-size: 14px; }
+        /* コメントUI修正 */
+        .comment-section { border-top: 1px solid #eee; padding-top: 20px; margin-top: 20px; }
+        .comment-input-area { display: flex; gap: 10px; margin-bottom: 20px; }
+        .comment-input { flex: 1; border: none; border-bottom: 1px solid #ccc; padding: 8px; outline: none; }
+        .comment-item { display: flex; gap: 12px; margin-bottom: 16px; }
+        .u-icon-sm { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+        .c-text { font-size: 14px; line-height: 1.4; }
 
-        /* 関連動画 */
-        .rec-card { display: flex; gap: 10px; text-decoration: none; color: #000; margin-bottom: 12px; }
-        .rec-thumb { width: 120px; aspect-ratio: 16/9; border-radius: 8px; object-fit: cover; background: #eee; }
-        .rec-title { font-size: 14px; font-weight: bold; line-height: 1.2; }
+        /* 関連動画UI修正 */
+        .rec-card { display: flex; gap: 8px; text-decoration: none; color: #000; margin-bottom: 12px; }
+        .rec-thumb-box { width: 160px; aspect-ratio: 16/9; border-radius: 8px; overflow: hidden; background: #eee; flex-shrink: 0; }
+        .rec-img { width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.3s; }
+        .rec-title { font-size: 14px; font-weight: bold; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+        @media (max-width: 900px) {
+            .main-layout { flex-direction: column; }
+            .recommend-side { width: 100%; }
+        }
     </style>
 </head>
 <body>
@@ -46,24 +58,24 @@
                 <div id="cName" style="font-weight:bold;">---</div>
                 <div id="cSubs" style="font-size:12px; color:#606060;">登録者 0人</div>
             </div>
-            <button class="btn active">登録</button>
+            <button class="btn active">チャンネル登録</button>
         </div>
 
-        <div style="display:flex; gap:10px; margin-bottom:10px;">
+        <div class="actions">
             <button class="btn" id="likeBtn">👍 <span id="vLikes">0</span></button>
         </div>
 
-        <div class="comment-box">
-            <h4>コメント</h4>
-            <input type="text" id="commentInput" class="comment-input" placeholder="コメントを追加...">
-            <button class="btn" id="postComment" style="float:right;">コメント</button>
-            <div style="clear:both; height:20px;"></div>
+        <div class="comment-section">
+            <div class="comment-input-area">
+                <input type="text" id="commentInput" class="comment-input" placeholder="コメントを入力...">
+                <button class="btn" id="postComment">コメント</button>
+            </div>
             <div id="commentList"></div>
         </div>
     </div>
 
     <div class="recommend-side">
-        <h4>関連動画</h4>
+        <h4 style="margin-top:0;">関連動画</h4>
         <div id="recommendList"></div>
     </div>
 </div>
@@ -88,10 +100,26 @@
     const vId = new URLSearchParams(window.location.search).get('id');
 
     let user = null;
-    onAuthStateChanged(auth, u => { user = u; loadVideo(); loadComments(); loadSideVideos(); });
+    onAuthStateChanged(auth, u => { 
+        user = u; 
+        if(vId) { loadVideo(); loadComments(); loadSideVideos(); }
+    });
+
+    // 自動サムネイル生成関数（復活）
+    function generateThumb(url, imgElement) {
+        const video = document.createElement('video');
+        video.src = url; video.preload = "auto"; video.muted = true; video.crossOrigin = "anonymous";
+        video.onloadeddata = () => video.currentTime = 1.0;
+        video.onseeked = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 320; canvas.height = 180;
+            canvas.getContext('2d').drawImage(video, 0, 0, 320, 180);
+            imgElement.src = canvas.toDataURL('image/jpeg');
+            imgElement.style.opacity = 1;
+        };
+    }
 
     async function loadVideo() {
-        if(!vId) return;
         const vRef = doc(db, "videos", vId);
         updateDoc(vRef, { views: increment(1) });
         onSnapshot(vRef, async snap => {
@@ -99,6 +127,8 @@
             document.getElementById('player').src = vd.url;
             document.getElementById('vTitle').innerText = vd.title;
             document.getElementById('vLikes').innerText = vd.likes || 0;
+            
+            // 投稿者情報
             onSnapshot(doc(db, "users", vd.userId), uSnap => {
                 const ud = uSnap.data();
                 document.getElementById('cName').innerText = ud.name;
@@ -107,17 +137,36 @@
                 document.getElementById('cIcon').onclick = jump;
                 document.getElementById('cJump').onclick = jump;
             });
+
+            // 高評価の状態
+            if(user) {
+                const lSnap = await getDoc(doc(db, "videos", vId, "likes", user.uid));
+                document.getElementById('likeBtn').classList.toggle('active', lSnap.exists());
+            }
         });
     }
 
-    // --- コメント機能 ---
+    // 高評価クリック（修正）
+    document.getElementById('likeBtn').onclick = async () => {
+        if(!user) return alert("ログインしてください");
+        const lRef = doc(db, "videos", vId, "likes", user.uid);
+        const vRef = doc(db, "videos", vId);
+        const lSnap = await getDoc(lRef);
+        if(lSnap.exists()) {
+            await deleteDoc(lRef);
+            await updateDoc(vRef, { likes: increment(-1) });
+        } else {
+            await setDoc(lRef, { active: true });
+            await updateDoc(vRef, { likes: increment(1) });
+        }
+    };
+
+    // コメント投稿
     document.getElementById('postComment').onclick = async () => {
         const text = document.getElementById('commentInput').value;
-        if(!user || !text) return alert("ログインとコメント入力が必要です");
+        if(!user || !text) return;
         await addDoc(collection(db, "videos", vId, "comments"), {
-            text: text,
-            userId: user.uid,
-            createdAt: serverTimestamp()
+            text: text, userId: user.uid, createdAt: serverTimestamp()
         });
         document.getElementById('commentInput').value = "";
     };
@@ -132,26 +181,33 @@
                 const item = document.createElement('div');
                 item.className = "comment-item";
                 const uSnap = await getDoc(doc(db, "users", cd.userId));
-                const uIcon = uSnap.exists() ? uSnap.data().icon : "";
-                item.innerHTML = `<img src="${uIcon}" class="user-icon-sm"><div><div style="font-size:12px; font-weight:bold;">${uSnap.data().name}</div><div class="comment-text">${cd.text}</div></div>`;
+                const ud = uSnap.data();
+                item.innerHTML = `<img src="${ud.icon || ''}" class="u-icon-sm"><div><div style="font-size:12px; font-weight:bold;">${ud.name}</div><div class="c-text">${cd.text}</div></div>`;
                 list.appendChild(item);
             });
         });
     }
 
-    // --- 関連動画機能 ---
     function loadSideVideos() {
         onSnapshot(collection(db, "videos"), snap => {
             const list = document.getElementById('recommendList');
             list.innerHTML = "";
             snap.forEach(vDoc => {
-                if(vDoc.id === vId) return; // 今見てる動画は出さない
+                if(vDoc.id === vId) return;
                 const vd = vDoc.data();
+                const tid = `rec-t-${vDoc.id}`;
                 list.innerHTML += `
                     <a href="watch.html?id=${vDoc.id}" class="rec-card">
-                        <img src="${vd.thumbnail}" class="rec-thumb">
+                        <div class="rec-thumb-box"><img src="" class="rec-img" id="${tid}"></div>
                         <div class="rec-title">${vd.title}</div>
                     </a>`;
+                
+                // 自動サムネイルの適用
+                setTimeout(() => {
+                    const img = document.getElementById(tid);
+                    if(vd.thumbnail) { img.src = vd.thumbnail; img.style.opacity = 1; }
+                    else { generateThumb(vd.url, img); }
+                }, 100);
             });
         });
     }
