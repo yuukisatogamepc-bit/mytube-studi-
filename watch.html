@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>再生 - iroTube</title>
+    <title>再生 - Mvideo</title>
     <style>
         body { font-family: sans-serif; margin: 0; background: #fff; display: flex; flex-direction: column; align-items: center; }
         header { width: 100%; padding: 10px 20px; border-bottom: 1px solid #eee; box-sizing: border-box; }
-        .logo { font-size: 20px; font-weight: bold; text-decoration: none; color: #007bff; }
+        /* ロゴのみ赤色に設定 */
+        .logo { font-size: 20px; font-weight: bold; text-decoration: none; color: #ff0000; }
         .container { display: flex; max-width: 1200px; width: 100%; gap: 20px; padding: 20px; box-sizing: border-box; }
         .main-col { flex: 2; }
         .side-col { flex: 1; }
@@ -18,13 +19,16 @@
         .author-icon { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #eee; }
         .btn { padding: 8px 16px; border-radius: 20px; border: none; cursor: pointer; font-weight: bold; }
         .btn-like { background: #eee; }
-        .btn-like.active { background: #007bff; color: #fff; }
-        .btn-sub { background: #cc0000; color: #fff; }
+        .btn-like.active { background: #ff0000; color: #fff; }
+        .btn-sub { background: #ff0000; color: #fff; }
         .btn-sub.active { background: #eee; color: #606060; }
         .admin-del { background: #ff4d4d; color: #fff; display: none; margin-left: 10px; }
         .edit-num { cursor: pointer; text-decoration: underline dotted; }
 
-        .comment-section { margin-top: 30px; border-top: 1px solid #eee; pt: 20px; }
+        /* 数値の色は指定せず標準に戻す */
+        .stat-val { font-weight: bold; }
+
+        .comment-section { margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px; }
         .comment-input { width: 100%; padding: 10px; border: none; border-bottom: 1px solid #ddd; margin-bottom: 10px; outline: none; }
         .comment-item { margin-bottom: 20px; font-size: 14px; }
         .comment-main { display: flex; gap: 10px; }
@@ -32,13 +36,12 @@
         .reply-btn { font-size: 12px; color: #606060; cursor: pointer; background: none; border: none; padding: 5px; margin-top: 5px; }
         .reply-input-area { margin-left: 50px; display: none; margin-top: 5px; }
         
-        /* [運営]バッジのスタイル */
-        .admin-badge { color: #cc0000; font-weight: bold; margin-left: 4px; }
+        .admin-badge { color: #ff0000; font-weight: bold; margin-left: 4px; }
     </style>
 </head>
 <body>
 
-<header><a href="index.html" class="logo">iroTube</a></header>
+<header><a href="index.html" class="logo">Mvideo</a></header>
 
 <div class="container">
     <div class="main-col">
@@ -144,7 +147,6 @@
             document.getElementById('subNum').innerText = fresh.data().subscribers;
         };
 
-        // コメント読み込み
         const cCol = collection(db, "videos", vid, "comments");
         onSnapshot(query(cCol, orderBy("createdAt", "desc")), snap => {
             document.getElementById('commentHeader').innerText = `コメント ${snap.size}件`;
@@ -153,7 +155,6 @@
             snap.forEach(d => {
                 const c = d.data();
                 const cid = d.id;
-                // [運営]タグの判定
                 const adminTag = (c.userId === ADMIN_UID) ? '<span class="admin-badge">[運営]</span>' : '';
                 
                 const div = document.createElement('div');
