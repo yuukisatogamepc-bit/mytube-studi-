@@ -23,6 +23,15 @@
         .btn-sub.active { background: #eee; color: #606060; }
         .admin-del { background: #ff4d4d; color: #fff; display: none; margin-left: 10px; }
         .edit-num { cursor: pointer; text-decoration: underline dotted; }
+
+        /* コメント・返信スタイル */
+        .comment-section { margin-top: 30px; border-top: 1px solid #eee; pt: 20px; }
+        .comment-input { width: 100%; padding: 10px; border: none; border-bottom: 1px solid #ddd; margin-bottom: 10px; outline: none; }
+        .comment-item { margin-bottom: 20px; font-size: 14px; }
+        .comment-main { display: flex; gap: 10px; }
+        .reply-list { margin-left: 50px; margin-top: 10px; border-left: 2px solid #eee; padding-left: 10px; }
+        .reply-btn { font-size: 12px; color: #606060; cursor: pointer; background: none; border: none; padding: 5px; margin-top: 5px; }
+        .reply-input-area { margin-left: 50px; display: none; margin-top: 5px; }
     </style>
 </head>
 <body>
@@ -50,14 +59,19 @@
                 <button id="adminDelBtn" class="btn admin-del">削除</button>
             </div>
         </div>
-        <div id="commentList" style="margin-top:20px;"></div>
+
+        <div class="comment-section">
+            <h3 id="commentHeader">コメント 0件</h3>
+            <input type="text" id="commentInput" class="comment-input" placeholder="コメントを追加...">
+            <div id="commentList"></div>
+        </div>
     </div>
     <div class="side-col" id="relatedList"></div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, getDocs, collection, query, limit, updateDoc, increment, addDoc, serverTimestamp, onSnapshot, deleteDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, getDocs, collection, query, limit, updateDoc, increment, addDoc, serverTimestamp, onSnapshot, deleteDoc, setDoc, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
@@ -84,9 +98,11 @@
         }
     });
 
+    if (vid) load();
+
     async function load() {
-        if(!vid) return;
-        const vSnap = await getDoc(doc(db, "videos", vid));
+        const vRef = doc(db, "videos", vid);
+        const vSnap = await getDoc(vRef);
         const v = vSnap.data();
         document.getElementById('player').src = v.url;
         document.getElementById('vTitle').innerText = v.title;
@@ -100,42 +116,109 @@
             document.getElementById('subNum').innerText = uSnap.data().subscribers || 0;
         }
 
-        // 高評価ボタン
+        // 高評価・登録ボタン (前回のロジック維持)
         document.getElementById('likeBtn').onclick = async () => {
             if(!currentUser) return alert("ログインしてね");
             const btn = document.getElementById('likeBtn');
             const ref = doc(db, "videos", vid, "likedUsers", currentUser.uid);
             const isLiked = btn.classList.contains('active');
-            
             await (isLiked ? deleteDoc(ref) : setDoc(ref, {u:1}));
-            await updateDoc(doc(db, "videos", vid), { likes: increment(isLiked ? -1 : 1) });
+            await updateDoc(vRef, { likes: increment(isLiked ? -1 : 1) });
             btn.classList.toggle('active');
-            const fresh = await getDoc(doc(db, "videos", vid));
+            const fresh = await getDoc(vRef);
             document.getElementById('likeNum').innerText = fresh.data().likes;
         };
 
-        // 登録ボタン
         document.getElementById('subBtn').onclick = async () => {
             if(!currentUser) return alert("ログインしてね");
             const btn = document.getElementById('subBtn');
-            const ref = doc(db, "users", v.userId, "subscriberList", currentUser.uid);
+            const uRef = doc(db, "users", v.userId);
+            const ref = doc(uRef, "subscriberList", currentUser.uid);
             const isSub = btn.classList.contains('active');
-
             await (isSub ? deleteDoc(ref) : setDoc(ref, {u:1}));
-            await updateDoc(doc(db, "users", v.userId), { subscribers: increment(isSub ? -1 : 1) });
+            await updateDoc(uRef, { subscribers: increment(isSub ? -1 : 1) });
             btn.classList.toggle('active');
             btn.innerText = isSub ? "チャンネル登録" : "登録済み";
-            const fresh = await getDoc(doc(db, "users", v.userId));
+            const fresh = await getDoc(uRef);
             document.getElementById('subNum').innerText = fresh.data().subscribers;
         };
 
-        updateDoc(doc(db, "videos", vid), { views: increment(1) });
+        // コメント読み込み (復活 ＆ 返信対応)
+        const cCol = collection(db, "videos", vid, "comments");
+        onSnapshot(query(cCol, orderBy("createdAt", "desc")), snap => {
+            document.getElementById('commentHeader').innerText = `コメント ${snap.size}件`;
+            const list = document.getElementById('commentList');
+            list.innerHTML = "";
+            snap.forEach(d => {
+                const c = d.data();
+                const cid = d.id;
+                const div = document.createElement('div');
+                div.className = "comment-item";
+                div.innerHTML = `
+                    <div class="comment-main">
+                        <strong>${c.userName || '匿名'}</strong>: ${c.text}
+                    </div>
+                    <button class="reply-btn" onclick="toggleReply('${cid}')">返信</button>
+                    <div id="reply-area-${cid}" class="reply-input-area">
+                        <input type="text" id="input-${cid}" class="comment-input" placeholder="返信を書く...">
+                    </div>
+                    <div id="replies-${cid}" class="reply-list"></div>
+                `;
+                list.appendChild(div);
+
+                // 返信のリアルタイム読み込み
+                onSnapshot(query(collection(db, "videos", vid, "comments", cid, "replies"), orderBy("createdAt", "asc")), rSnap => {
+                    const rList = document.getElementById(`replies-${cid}`);
+                    rList.innerHTML = "";
+                    rSnap.forEach(rd => {
+                        const r = rd.data();
+                        rList.innerHTML += `<div><strong>${r.userName}</strong>: ${r.text}</div>`;
+                    });
+                });
+
+                // 返信入力イベント
+                document.getElementById(`input-${cid}`).onkeypress = async (e) => {
+                    if (e.key === 'Enter' && currentUser && e.target.value.trim()) {
+                        const mySnap = await getDoc(doc(db, "users", currentUser.uid));
+                        await addDoc(collection(db, "videos", vid, "comments", cid, "replies"), {
+                            text: e.target.value,
+                            userName: mySnap.data()?.name || "匿名",
+                            userId: currentUser.uid,
+                            createdAt: serverTimestamp()
+                        });
+                        e.target.value = "";
+                        toggleReply(cid);
+                    }
+                };
+            });
+        });
+
+        // 親コメント投稿
+        document.getElementById('commentInput').onkeypress = async (e) => {
+            if (e.key === 'Enter' && currentUser && e.target.value.trim()) {
+                const mySnap = await getDoc(doc(db, "users", currentUser.uid));
+                await addDoc(cCol, {
+                    text: e.target.value,
+                    userName: mySnap.data()?.name || "匿名",
+                    userId: currentUser.uid,
+                    createdAt: serverTimestamp()
+                });
+                e.target.value = "";
+            }
+        };
+
+        updateDoc(vRef, { views: increment(1) });
     }
+
+    // 返信入力欄の表示切り替え
+    window.toggleReply = (cid) => {
+        const area = document.getElementById(`reply-area-${cid}`);
+        area.style.display = area.style.display === "block" ? "none" : "block";
+    };
 
     async function checkStates() {
         const l = await getDoc(doc(db, "videos", vid, "likedUsers", currentUser.uid));
         if(l.exists()) document.getElementById('likeBtn').classList.add('active');
-        
         const v = await getDoc(doc(db, "videos", vid));
         const s = await getDoc(doc(db, "users", v.data().userId, "subscriberList", currentUser.uid));
         if(s.exists()) {
@@ -168,8 +251,6 @@
             if(confirm("消す？")) { await deleteDoc(doc(db, "videos", vid)); location.href="index.html"; }
         };
     }
-
-    load();
 </script>
 </body>
 </html>
