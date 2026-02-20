@@ -6,89 +6,91 @@
     <title>MyTube - 再生</title>
     <style>
         :root { --yt-bg: #ffffff; --yt-text: #0f0f0f; --yt-gray: #606060; --yt-card: #f2f2f2; }
-        body { font-family: "Roboto", Arial, sans-serif; margin: 0; background: var(--yt-bg); color: var(--yt-text); }
+        body { font-family: "Roboto", Arial, sans-serif; margin: 0; background: var(--yt-bg); color: var(--yt-text); -webkit-tap-highlight-color: transparent; }
         header { display: flex; align-items: center; padding: 10px 15px; background: var(--yt-bg); border-bottom: 1px solid #ddd; position: sticky; top: 0; z-index: 100; }
         .logo { color: #ff0000; font-size: 20px; font-weight: bold; cursor: pointer; text-decoration: none; }
         
         .main-container { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1fr 350px; gap: 20px; padding: 15px; }
         @media (max-width: 1000px) { 
             .main-container { grid-template-columns: 1fr; padding: 0; } 
-            .video-section video { border-radius: 0; } 
-            .video-title, .stats-bar, .channel-info, .comment-section { padding: 0 15px; } 
+            .video-section video { border-radius: 0; }
+            .video-title, .stats-bar, .channel-info, .comment-section { padding: 0 15px; }
         }
 
-        .video-section video { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 12px; }
+        .video-section video { width: 100%; border-radius: 12px; background: #000; aspect-ratio: 16/9; }
+        #adminPanel { display: none; background: #f9f9f9; color: #b8860b; padding: 15px; border-radius: 12px; margin: 10px; border: 1px solid gold; }
+        #adminPanel input { background: #fff; color: #333; border: 1px solid #ccc; padding: 6px; width: 60px; border-radius: 4px; }
         
-        /* ボタン基本スタイル */
-        .yt-btn { 
-            background: var(--yt-card); 
-            border: none; 
-            padding: 8px 16px; 
-            border-radius: 20px; 
-            font-weight: bold; 
-            cursor: pointer; 
-            font-size: 13px;
-            white-space: nowrap; /* 改行防止 */
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-        }
+        .video-title { font-size: 18px; font-weight: bold; margin: 12px 0 8px 0; line-height: 1.4; }
+        .stats-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .v-meta { color: var(--yt-gray); font-size: 13px; }
+        
+        .yt-btn { background: var(--yt-card); color: #0f0f0f; border: none; padding: 6px 14px; border-radius: 18px; font-weight: bold; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 5px; white-space: nowrap; flex-shrink: 0; }
+        .yt-btn.active { background: #0f0f0f; color: #fff; }
+        
+        .channel-info { background: #fff; padding: 12px 0; display: flex; align-items: center; gap: 10px; border-top: 1px solid #eee; border-bottom: 1px solid #eee; margin-bottom: 20px; }
+        .channel-icon { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; cursor: pointer; }
+        .sub-btn { background: #0f0f0f; color: #fff; border-radius: 18px; padding: 8px 14px; border: none; font-weight: bold; font-size: 13px; cursor: pointer; margin-left: auto; }
+        .sub-btn.subscribed { background: #eee; color: #606060; }
 
-        /* ★コメント投稿欄のレイアウト修正 */
-        .comment-input-area { 
-            display: flex; 
-            align-items: flex-end; /* 下揃えで入力線とボタンの高さを合わせる */
-            gap: 12px; 
-            margin-bottom: 30px; 
-            width: 100%;
-        }
-        .comment-input-area input { 
-            flex: 1; /* 入力欄を限界まで広げる */
-            border: none; 
-            border-bottom: 1px solid #ddd; 
-            outline: none; 
-            padding: 8px 0; 
-            font-size: 14px; 
-            background: transparent;
-            min-width: 0; /* flex内のinput崩れ防止 */
-        }
-        .comment-input-area button { 
-            flex-shrink: 0; /* ボタンが潰れるのを防ぐ */
-        }
-
+        /* コメントセクション */
+        .comment-input-area { display: flex; align-items: flex-end; gap: 12px; margin: 20px 0 30px 0; width: 100%; }
+        .comment-input-area input { flex: 1; border: none; border-bottom: 1px solid #ddd; outline: none; padding: 8px 0; font-size: 14px; background: transparent; min-width: 0; }
+        
         .comment-item { display: flex; gap: 10px; margin-bottom: 20px; }
         .c-icon { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
-        .c-actions { font-size: 12px; color: var(--yt-gray); margin-top: 5px; cursor: pointer; display: flex; gap: 10px; }
-        .reply-list { margin-left: 40px; margin-top: 10px; border-left: 2px solid #eee; padding-left: 10px; }
+        .c-body { flex: 1; }
+        .c-name { font-weight: bold; font-size: 13px; margin-bottom: 2px; }
+        .c-text { font-size: 14px; line-height: 1.4; }
+        .c-actions { display: flex; gap: 10px; margin-top: 5px; font-size: 12px; color: var(--yt-gray); cursor: pointer; }
+        
+        .reply-list { margin-left: 42px; border-left: 2px solid #eee; padding-left: 10px; margin-top: 10px; }
         .reply-box, .edit-box { display: none; margin-top: 10px; }
+        .reply-box .inner, .edit-box .inner { display: flex; gap: 10px; align-items: flex-end; }
+        
+        /* サイドバー動画 */
+        .side-v-card { display: flex; gap: 8px; margin-bottom: 12px; cursor: pointer; }
+        .side-thumb { width: 120px; aspect-ratio: 16/9; border-radius: 8px; object-fit: cover; background: #eee; }
+        .side-title { font-size: 13px; font-weight: bold; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .side-meta { font-size: 11px; color: var(--yt-gray); margin-top: 4px; }
     </style>
 </head>
 <body>
 <header><a href="index.html" class="logo">MyTube</a></header>
 <div class="main-container">
     <div class="video-section">
-        <video id="player" controls playsinline autoplay></video>
-        <h2 class="video-title" id="vTitle">...</h2>
-        <div class="stats-bar"><div class="v-meta"><span id="vViews">0</span>回視聴</div><button class="yt-btn" id="likeBtn">👍 <span id="vLikes">0</span></button></div>
-        <div class="channel-info">
-            <img src="" class="channel-icon" id="cIcon" onclick="toChannel()" style="width:40px; height:40px; border-radius:50%;">
-            <div><div id="cName" style="font-weight:bold;" onclick="toChannel()">...</div><div id="cSubs" style="font-size:12px; color:var(--yt-gray);">...</div></div>
-            <button class="sub-btn" style="background:#0f0f0f; color:#fff; border-radius:20px; padding:8px 16px; border:none; font-weight:bold; margin-left:auto; cursor:pointer;" id="subBtn">チャンネル登録</button>
+        <div id="adminPanel">
+            👑 管理: 再生 <input type="number" id="admViews"> 評価 <input type="number" id="admLikes"> 登録 <input type="number" id="admSubs">
+            <button onclick="adminSave()">保存</button>
         </div>
-        
+        <video id="player" controls playsinline autoplay></video>
+        <h2 class="video-title" id="vTitle">読み込み中...</h2>
+        <div class="stats-bar">
+            <div class="v-meta"><span id="vViews">0</span>回視聴</div>
+            <button class="yt-btn" id="likeBtn">👍 <span id="vLikes">0</span></button>
+        </div>
+        <div class="channel-info">
+            <img src="" class="channel-icon" id="cIcon" onclick="toChannel()">
+            <div>
+                <div id="cName" style="font-weight:bold; font-size:14px;" onclick="toChannel()">ユーザー</div>
+                <div id="cSubs" style="font-size:11px; color:var(--yt-gray);">登録者 0人</div>
+            </div>
+            <button class="sub-btn" id="subBtn">チャンネル登録</button>
+        </div>
         <div class="comment-section">
             <div class="comment-input-area">
-                <input type="text" id="commentInput" placeholder="コメントを入力...">
+                <input type="text" id="commentInput" placeholder="コメントを追加...">
                 <button class="yt-btn" id="commentBtn">投稿</button>
             </div>
             <div id="commentList"></div>
         </div>
     </div>
+    <div class="side-section" id="sideGrid"></div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, updateDoc, onSnapshot, collection, query, where, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where, addDoc, deleteDoc, serverTimestamp, increment, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
@@ -104,50 +106,115 @@
     const db = getFirestore(app);
     const auth = getAuth(app);
     const vId = new URLSearchParams(window.location.search).get('id');
-    let user = null, authorId = "";
+    let user = null, authorId = "", cmd = "";
 
-    onAuthStateChanged(auth, u => { user = u; loadVideo(); loadComments(); });
+    // 管理者パネル起動
+    window.addEventListener('keydown', e => { 
+        cmd = (cmd + e.key.toLowerCase()).slice(-9); 
+        if(cmd === "abbmytube") document.getElementById('adminPanel').style.display = 'block'; 
+    });
+
+    onAuthStateChanged(auth, u => { user = u; loadVideo(); loadComments(); loadSideVideos(); });
 
     async function loadVideo() {
         if(!vId) return;
-        onSnapshot(doc(db, "videos", vId), async snap => {
+        const vRef = doc(db, "videos", vId);
+        await updateDoc(vRef, { views: increment(1) });
+
+        onSnapshot(vRef, async snap => {
+            if(!snap.exists()) return;
             const d = snap.data(); authorId = d.userId;
             document.getElementById('player').src = d.url;
             document.getElementById('vTitle').innerText = d.title;
-            document.getElementById('vViews').innerText = d.views || 0;
-            document.getElementById('vLikes').innerText = d.likes || 0;
-            onSnapshot(doc(db, "users", d.userId), u => {
-                document.getElementById('cName').innerText = u.data().name;
-                document.getElementById('cIcon').src = u.data().icon;
-                document.getElementById('cSubs').innerText = `登録者 ${u.data().subCount || 0}人`;
+            document.getElementById('vViews').innerText = (d.views || 0).toLocaleString();
+            document.getElementById('vLikes').innerText = (d.likes || 0).toLocaleString();
+            
+            document.getElementById('admViews').value = d.views || 0;
+            document.getElementById('admLikes').value = d.likes || 0;
+
+            onSnapshot(doc(db, "users", d.userId), (uSnap) => {
+                const ud = uSnap.data();
+                document.getElementById('cName').innerText = ud.name;
+                document.getElementById('cIcon').src = ud.icon || "";
+                document.getElementById('cSubs').innerText = `登録者 ${(ud.subCount || 0).toLocaleString()}人`;
+                document.getElementById('admSubs').value = ud.subCount || 0;
             });
+
+            if(user) {
+                const sSnap = await getDoc(doc(db, "users", user.uid, "subscriptions", authorId));
+                const btn = document.getElementById('subBtn');
+                btn.innerText = sSnap.exists() ? "登録済み" : "チャンネル登録";
+                btn.className = sSnap.exists() ? "sub-btn subscribed" : "sub-btn";
+
+                const lSnap = await getDoc(doc(db, "videos", vId, "likes", user.uid));
+                document.getElementById('likeBtn').classList.toggle('active', lSnap.exists());
+            }
         });
     }
 
-    async function sendComment(txt = "", pid = null) {
-        const val = txt || document.getElementById(pid ? `ri-${pid}` : 'commentInput').value;
-        if(!val || !user) return alert("ログインが必要です");
-        const u = await getDoc(doc(db, "users", user.uid));
-        await addDoc(collection(db, "comments"), { videoId:vId, userId:user.uid, text:val, userName:u.data().name, userIcon:u.data().icon, parentId:pid, createdAt:serverTimestamp() });
-        if(!pid) document.getElementById('commentInput').value = "";
-        else document.getElementById(`rb-${pid}`).style.display = 'none';
+    window.adminSave = async () => {
+        const v = parseInt(document.getElementById('admViews').value);
+        const l = parseInt(document.getElementById('admLikes').value);
+        const s = parseInt(document.getElementById('admSubs').value);
+        await updateDoc(doc(db, "videos", vId), { views: v, likes: l });
+        await updateDoc(doc(db, "users", authorId), { subCount: s });
+        alert("管理データを保存しました");
+    };
+
+    document.getElementById('subBtn').onclick = async () => {
+        if (!user || user.uid === authorId) return;
+        const subRef = doc(db, "users", user.uid, "subscriptions", authorId);
+        const authorRef = doc(db, "users", authorId);
+        const s = await getDoc(subRef);
+        if (s.exists()) { await deleteDoc(subRef); await updateDoc(authorRef, { subCount: increment(-1) }); }
+        else { await setDoc(subRef, { at: serverTimestamp() }); await updateDoc(authorRef, { subCount: increment(1) }); }
+    };
+
+    document.getElementById('likeBtn').onclick = async () => {
+        if (!user) return alert("ログインが必要です");
+        const likeRef = doc(db, "videos", vId, "likes", user.uid);
+        const vRef = doc(db, "videos", vId);
+        const lSnap = await getDoc(likeRef);
+        if (lSnap.exists()) { await deleteDoc(likeRef); await updateDoc(vRef, { likes: increment(-1) }); }
+        else { await setDoc(likeRef, { at: serverTimestamp() }); await updateDoc(vRef, { likes: increment(1) }); }
+    };
+
+    // コメント投稿 (横並び)
+    async function sendComment(text = "", parentId = null) {
+        const input = document.getElementById(parentId ? `ri-${parentId}` : 'commentInput');
+        const val = text || input.value;
+        if (!val || !user) return;
+        const ud = (await getDoc(doc(db, "users", user.uid))).data();
+        await addDoc(collection(db, "comments"), {
+            videoId: vId, userId: user.uid, text: val, userName: ud.name, userIcon: ud.icon, 
+            parentId: parentId, createdAt: serverTimestamp()
+        });
+        input.value = "";
+        if(parentId) document.getElementById(`rb-${parentId}`).style.display = 'none';
     }
     document.getElementById('commentBtn').onclick = () => sendComment();
 
     function loadComments() {
-        onSnapshot(query(collection(db, "comments"), where("videoId", "==", vId)), snap => {
+        const q = query(collection(db, "comments"), where("videoId", "==", vId));
+        onSnapshot(q, snap => {
             const list = document.getElementById('commentList'); list.innerHTML = "";
-            const all = []; snap.forEach(d => all.push({id:d.id, ...d.data()}));
-            all.filter(c => !c.parentId).sort((a,b) => b.createdAt - a.createdAt).forEach(c => {
-                const div = document.createElement('div'); div.className = "comment-item";
+            const all = []; snap.forEach(d => all.push({id: d.id, ...d.data()}));
+            all.filter(c => !c.parentId).sort((a,b)=>b.createdAt - a.createdAt).forEach(c => {
+                const div = document.createElement('div');
+                div.className = "comment-item";
                 div.innerHTML = `
                     <img src="${c.userIcon}" class="c-icon">
-                    <div style="flex:1;"><div style="font-weight:bold; font-size:13px;">${c.userName}</div>
-                    <div id="t-${c.id}">${c.text}</div>
-                    <div class="edit-box" id="eb-${c.id}"><input type="text" id="ei-${c.id}" value="${c.text}"><button class="yt-btn" onclick="saveEdit('${c.id}')">保存</button></div>
-                    <div class="c-actions"><span onclick="showReply('${c.id}')">返信</span>${user && user.uid===c.userId?`<span onclick="showEdit('${c.id}')">編集</span>`:''}</div>
-                    <div class="reply-box" id="rb-${c.id}" style="display:none; margin-top:10px;"><div style="display:flex; gap:10px;"><input type="text" id="ri-${c.id}" style="flex:1; border:none; border-bottom:1px solid #ddd; outline:none;" placeholder="返信..."><button class="yt-btn" onclick="sendReply('${c.id}')">返信</button></div></div>
-                    <div class="reply-list">${all.filter(r=>r.parentId===c.id).map(r=>`<div style="display:flex; gap:10px; margin-top:10px;"><img src="${r.userIcon}" style="width:24px;height:24px;border-radius:50%;"><div><div style="font-weight:bold;font-size:12px;">${r.userName}</div><div>${r.text}</div></div></div>`).join('')}</div></div>
+                    <div class="c-body">
+                        <div class="c-name">${c.userName}</div>
+                        <div id="t-${c.id}" class="c-text">${c.text}</div>
+                        <div class="edit-box" id="eb-${c.id}"><div class="inner"><input type="text" id="ei-${c.id}" value="${c.text}"><button class="yt-btn" onclick="saveEdit('${c.id}')">保存</button></div></div>
+                        <div class="c-actions">
+                            <span onclick="showReply('${c.id}')">返信</span>
+                            ${user && user.uid === c.userId ? `<span onclick="showEdit('${c.id}')">編集</span>` : ''}
+                        </div>
+                        <div class="reply-box" id="rb-${c.id}"><div class="inner"><input type="text" id="ri-${c.id}" placeholder="返信..."><button class="yt-btn" onclick="sendReply('${c.id}')">返信</button></div></div>
+                        <div class="reply-list">${all.filter(r=>r.parentId===c.id).map(r=>`<div class="comment-item"><img src="${r.userIcon}" class="c-icon" style="width:24px;height:24px;"><div class="c-body"><div class="c-name">${r.userName}</div><div class="c-text">${r.text}</div></div></div>`).join('')}</div>
+                    </div>
                 `;
                 list.appendChild(div);
             });
@@ -157,7 +224,26 @@
     window.showReply = id => { const el = document.getElementById(`rb-${id}`); el.style.display = el.style.display==='block'?'none':'block'; };
     window.sendReply = id => sendComment("", id);
     window.showEdit = id => { document.getElementById(`t-${id}`).style.display='none'; document.getElementById(`eb-${id}`).style.display='block'; };
-    window.saveEdit = async id => { await updateDoc(doc(db, "comments", id), { text: document.getElementById(`ei-${id}`).value }); location.reload(); };
+    window.saveEdit = async id => { 
+        const newVal = document.getElementById(`ei-${id}`).value;
+        await updateDoc(doc(db, "comments", id), { text: newVal });
+        document.getElementById(`t-${id}`).style.display='block'; document.getElementById(`eb-${id}`).style.display='none';
+    };
+
+    function loadSideVideos() {
+        onSnapshot(collection(db, "videos"), snap => {
+            const grid = document.getElementById('sideGrid'); grid.innerHTML = "";
+            snap.forEach(vDoc => {
+                if(vDoc.id === vId) return;
+                const vd = vDoc.data();
+                const div = document.createElement('div'); div.className = "side-v-card";
+                div.onclick = () => location.href = `watch.html?id=${vDoc.id}`;
+                div.innerHTML = `<img src="${vd.thumbnail || ''}" class="side-thumb"><div class="side-info"><div class="side-title">${vd.title}</div><div class="side-meta">${vd.views||0}回視聴</div></div>`;
+                grid.appendChild(div);
+            });
+        });
+    }
+
     window.toChannel = () => location.href = `channel.html?uid=${authorId}`;
 </script>
 </body>
