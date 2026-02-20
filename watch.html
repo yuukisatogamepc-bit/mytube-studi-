@@ -3,42 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MyTube - ホーム</title>
+    <title>MyTube - 再生</title>
     <style>
         :root { --yt-bg: #ffffff; --yt-text: #0f0f0f; --yt-gray: #606060; --yt-card: #f2f2f2; }
-        body { font-family: "Roboto", Arial, sans-serif; margin: 0; background: var(--yt-bg); color: var(--yt-text); }
-        
-        /* ヘッダー */
+        body { font-family: "Roboto", Arial, sans-serif; margin: 0; background: var(--yt-bg); color: var(--yt-text); -webkit-tap-highlight-color: transparent; }
         header { display: flex; align-items: center; justify-content: space-between; padding: 10px 15px; background: var(--yt-bg); border-bottom: 1px solid #ddd; position: sticky; top: 0; z-index: 100; }
         .logo { color: #ff0000; font-size: 20px; font-weight: bold; cursor: pointer; text-decoration: none; }
-        .header-right { display: flex; align-items: center; gap: 12px; }
+        .header-right { display: flex; align-items: center; gap: 10px; }
         
-        /* 動画グリッド */
-        .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; padding: 16px; }
-        .v-card-wrapper { position: relative; }
-        .v-card { cursor: pointer; text-decoration: none; color: inherit; display: block; }
-        .thumb-container { width: 100%; aspect-ratio: 16/9; border-radius: 12px; overflow: hidden; background: #eee; }
-        .thumb-img { width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.3s; }
-        .v-info { display: flex; gap: 12px; margin-top: 12px; }
-        .v-icon { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: #eee; }
-        .v-title { font-size: 16px; font-weight: bold; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        .v-meta { font-size: 14px; color: var(--yt-gray); margin-top: 4px; }
+        .main-container { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1fr 350px; gap: 20px; padding: 15px; }
+        @media (max-width: 1000px) { .main-container { grid-template-columns: 1fr; padding: 0; } .video-section video { border-radius: 0; } .video-title, .stats-bar, .channel-info, .comment-section { padding: 0 15px; } }
 
-        /* 削除ボタン */
-        .del-btn { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.7); color: white; border: none; border-radius: 50%; width: 32px; height: 32px; cursor: pointer; z-index: 10; font-size: 14px; display: flex; align-items: center; justify-content: center; }
-        .del-btn:hover { background: #ff0000; }
-
+        .video-section video { width: 100%; border-radius: 12px; background: #000; aspect-ratio: 16/9; }
+        
         /* プロフィール変更モーダル */
-        #profileModal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 24px; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.3); z-index: 1000; width: 90%; max-width: 360px; }
-        #profileModal h3 { margin: 0 0 16px 0; }
-        #profileModal label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 4px; color: var(--yt-gray); }
-        #profileModal input { width: 100%; margin-bottom: 16px; padding: 10px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; }
-        .modal-btns { display: flex; gap: 10px; justify-content: flex-end; }
-        .overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index: 999; }
+        #profileModal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 12px; box-shadow: 0 0 20px rgba(0,0,0,0.2); z-index: 1000; width: 90%; max-width: 350px; }
+        #profileModal input { width: 100%; margin: 10px 0; padding: 8px; box-sizing: border-box; }
+        .modal-btns { display: flex; gap: 10px; justify-content: flex-end; margin-top: 15px; }
+        .overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index: 999; }
 
-        .yt-btn { background: var(--yt-card); color: #0f0f0f; border: none; padding: 8px 16px; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 14px; }
+        /* 管理パネル */
+        #adminPanel { display: none; background: #f9f9f9; color: #b8860b; padding: 15px; border-radius: 12px; margin: 10px; border: 1px solid gold; }
+        #adminPanel input { width: 60px; }
+        .del-btn { background: #ff4d4d; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        
+        .yt-btn { background: var(--yt-card); color: #0f0f0f; border: none; padding: 6px 14px; border-radius: 18px; font-weight: bold; cursor: pointer; font-size: 13px; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; flex-shrink: 0; }
         .yt-btn.active { background: #0f0f0f; color: #fff; }
-        .icon-btn { font-size: 22px; cursor: pointer; background: none; border: none; padding: 0; }
+        
+        .channel-info { background: #fff; padding: 12px 0; display: flex; align-items: center; gap: 10px; border-top: 1px solid #eee; border-bottom: 1px solid #eee; margin-bottom: 20px; }
+        .channel-icon { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; }
+        .sub-btn { background: #0f0f0f; color: #fff; border-radius: 18px; padding: 8px 14px; border: none; font-weight: bold; font-size: 13px; cursor: pointer; margin-left: auto; }
+        .sub-btn.subscribed { background: #eee; color: #606060; }
+
+        /* コメント（横並び） */
+        .comment-input-area { display: flex; align-items: flex-end; gap: 12px; margin: 20px 0 30px 0; }
+        .comment-input-area input { flex: 1; border: none; border-bottom: 1px solid #ddd; outline: none; padding: 8px 0; font-size: 14px; }
+        
+        .comment-item { display: flex; gap: 10px; margin-bottom: 20px; }
+        .c-icon { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
+        .c-body { flex: 1; }
+        .c-name { font-weight: bold; font-size: 13px; }
+        .c-text { font-size: 14px; line-height: 1.4; }
+        .c-actions { display: flex; gap: 10px; margin-top: 5px; font-size: 12px; color: var(--yt-gray); cursor: pointer; }
+        
+        /* サイドバー */
+        .side-v-card { display: flex; gap: 8px; margin-bottom: 12px; cursor: pointer; }
+        .side-thumb-container { width: 120px; aspect-ratio: 16/9; border-radius: 8px; overflow: hidden; background: #eee; }
+        .side-thumb { width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.3s; }
+        .side-title { font-size: 13px; font-weight: bold; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     </style>
 </head>
 <body>
@@ -50,23 +62,53 @@
 
 <div class="overlay" id="overlay" onclick="closeProfile()"></div>
 <div id="profileModal">
-    <h3>プロフィール編集</h3>
+    <h3>プロフィール変更</h3>
     <label>名前</label>
-    <input type="text" id="newUserName" placeholder="新しい名前を入力">
+    <input type="text" id="newUserName" placeholder="新しい名前">
     <label>アイコン画像</label>
     <input type="file" id="newUserIcon" accept="image/*">
     <div class="modal-btns">
-        <button class="yt-btn" onclick="closeProfile()">キャンセル</button>
-        <button class="yt-btn active" id="saveProfileBtn" onclick="saveProfile()">保存</button>
+        <button onclick="closeProfile()">キャンセル</button>
+        <button class="yt-btn active" onclick="saveProfile()">保存</button>
     </div>
 </div>
 
-<div class="video-grid" id="videoGrid"></div>
+<div class="main-container">
+    <div class="video-section">
+        <div id="adminPanel">
+            👑 管理: 再生 <input type="number" id="admViews"> 評価 <input type="number" id="admLikes"> 登録 <input type="number" id="admSubs">
+            <button onclick="adminSave()">保存</button>
+            <button class="del-btn" onclick="adminDelete()">動画削除</button>
+        </div>
+        <video id="player" controls playsinline autoplay></video>
+        <h2 class="video-title" id="vTitle">読み込み中...</h2>
+        <div class="stats-bar">
+            <div class="v-meta"><span id="vViews">0</span>回視聴</div>
+            <button class="yt-btn" id="likeBtn">👍 <span id="vLikes">0</span></button>
+        </div>
+        <div class="channel-info">
+            <img src="" class="channel-icon" id="cIcon" onclick="toChannel()">
+            <div>
+                <div id="cName" style="font-weight:bold; font-size:14px;" onclick="toChannel()">ユーザー</div>
+                <div id="cSubs" style="font-size:11px; color:var(--yt-gray);">登録者 0人</div>
+            </div>
+            <button class="sub-btn" id="subBtn">チャンネル登録</button>
+        </div>
+        <div class="comment-section">
+            <div class="comment-input-area">
+                <input type="text" id="commentInput" placeholder="コメントを追加...">
+                <button class="yt-btn" id="commentBtn">投稿</button>
+            </div>
+            <div id="commentList"></div>
+        </div>
+    </div>
+    <div class="side-section" id="sideGrid"></div>
+</div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, doc, getDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getFirestore, doc, getDoc, updateDoc, onSnapshot, collection, query, where, addDoc, deleteDoc, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
     import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
     const firebaseConfig = {
@@ -82,61 +124,45 @@
     const db = getFirestore(app);
     const auth = getAuth(app);
     const storage = getStorage(app);
+    const vId = new URLSearchParams(window.location.search).get('id');
+    let user = null, authorId = "", cmd = "";
 
-    let user = null;
-
-    // ログイン状態監視 & ヘッダー更新
-    onAuthStateChanged(auth, async u => {
-        user = u;
-        const hr = document.getElementById('headerRight');
-        if(u) {
-            const uSnap = await getDoc(doc(db, "users", u.uid));
-            const userData = uSnap.data();
-            hr.innerHTML = `
-                <button class="icon-btn" onclick="location.href='upload.html'">📤</button>
-                <button class="yt-btn" onclick="openProfile()">プロフィール編集</button>
-                <img src="${userData?.icon || ''}" style="width:32px;height:32px;border-radius:50%;cursor:pointer;object-fit:cover;" onclick="window.logout()">
-            `;
-            document.getElementById('newUserName').value = userData?.name || "";
-        } else {
-            hr.innerHTML = `<button class="yt-btn active" onclick="location.href='login.html'">ログイン</button>`;
-        }
-        loadVideos();
+    window.addEventListener('keydown', e => { 
+        cmd = (cmd + e.key.toLowerCase()).slice(-9); 
+        if(cmd === "abbmytube") document.getElementById('adminPanel').style.display = 'block'; 
     });
 
-    // プロフィール変更機能
+    onAuthStateChanged(auth, async u => { 
+        user = u;
+        if(u) {
+            const uSnap = await getDoc(doc(db, "users", u.uid));
+            document.getElementById('headerRight').innerHTML = `
+                <button class="yt-btn" onclick="openProfile()">プロフィール変更</button>
+                <img src="${uSnap.data()?.icon || ''}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+            `;
+            document.getElementById('newUserName').value = uSnap.data()?.name || "";
+        }
+        loadVideo(); loadComments(); loadSideVideos(); 
+    });
+
     window.openProfile = () => { document.getElementById('profileModal').style.display = 'block'; document.getElementById('overlay').style.display = 'block'; };
     window.closeProfile = () => { document.getElementById('profileModal').style.display = 'none'; document.getElementById('overlay').style.display = 'none'; };
 
     window.saveProfile = async () => {
         const newName = document.getElementById('newUserName').value;
         const iconFile = document.getElementById('newUserIcon').files[0];
-        const btn = document.getElementById('saveProfileBtn');
         if(!user || !newName) return;
-
-        btn.disabled = true;
-        btn.innerText = "保存中...";
-
-        try {
-            let updateData = { name: newName };
-            if(iconFile) {
-                const iRef = ref(storage, `icons/${user.uid}`);
-                await uploadBytes(iRef, iconFile);
-                updateData.icon = await getDownloadURL(iRef);
-            }
-            await updateDoc(doc(db, "users", user.uid), updateData);
-            alert("プロフィールを更新しました！");
-            location.reload();
-        } catch (e) {
-            alert("エラー: " + e.message);
-            btn.disabled = false;
-            btn.innerText = "保存";
+        let updateData = { name: newName };
+        if(iconFile) {
+            const iRef = ref(storage, `icons/${user.uid}`);
+            await uploadBytes(iRef, iconFile);
+            updateData.icon = await getDownloadURL(iRef);
         }
+        await updateDoc(doc(db, "users", user.uid), updateData);
+        alert("プロフィールを更新しました");
+        location.reload();
     };
 
-    window.logout = () => { if(confirm("ログアウトしますか？")) signOut(auth).then(()=>location.reload()); };
-
-    // 自動サムネイル
     async function generateThumb(url, imgElement) {
         const video = document.createElement('video');
         video.src = url; video.preload = "auto"; video.muted = true; video.crossOrigin = "anonymous";
@@ -151,64 +177,74 @@
         video.load();
     }
 
-    // 動画読み込み & 削除ボタン表示
-    function loadVideos() {
-        const q = query(collection(db, "videos"), orderBy("createdAt", "desc"));
-        onSnapshot(q, snap => {
-            const grid = document.getElementById('videoGrid');
-            grid.innerHTML = "";
-            snap.forEach(async vDoc => {
-                const vd = vDoc.data();
-                const vId = vDoc.id;
-                const sid = `thumb-${vId}`;
-                
-                const wrapper = document.createElement('div');
-                wrapper.className = "v-card-wrapper";
+    async function loadVideo() {
+        if(!vId) return;
+        const vRef = doc(db, "videos", vId);
+        await updateDoc(vRef, { views: increment(1) });
+        onSnapshot(vRef, async snap => {
+            if(!snap.exists()) return;
+            const d = snap.data(); authorId = d.userId;
+            document.getElementById('player').src = d.url;
+            document.getElementById('vTitle').innerText = d.title;
+            document.getElementById('vViews').innerText = (d.views || 0).toLocaleString();
+            document.getElementById('vLikes').innerText = (d.likes || 0).toLocaleString();
+            document.getElementById('admViews').value = d.views || 0;
+            document.getElementById('admLikes').value = d.likes || 0;
+            onSnapshot(doc(db, "users", d.userId), (uSnap) => {
+                const ud = uSnap.data();
+                document.getElementById('cName').innerText = ud.name;
+                document.getElementById('cIcon').src = ud.icon || "";
+                document.getElementById('cSubs').innerText = `登録者 ${(ud.subCount || 0).toLocaleString()}人`;
+                document.getElementById('admSubs').value = ud.subCount || 0;
+            });
+            if(user) {
+                const lSnap = await getDoc(doc(db, "videos", vId, "likes", user.uid));
+                document.getElementById('likeBtn').classList.toggle('active', lSnap.exists());
+            }
+        });
+    }
 
-                // 動画カード本体
-                const card = document.createElement('a');
-                card.className = "v-card";
-                card.href = `watch.html?id=${vId}`;
-                card.innerHTML = `
-                    <div class="thumb-container">
-                        <img src="" class="thumb-img" id="${sid}">
-                    </div>
-                    <div class="v-info">
-                        <img src="" class="v-icon" id="icon-${vId}">
-                        <div>
-                            <div class="v-title">${vd.title}</div>
-                            <div class="v-meta">${(vd.views||0).toLocaleString()}回視聴</div>
-                        </div>
-                    </div>
-                `;
-                wrapper.appendChild(card);
+    window.adminSave = async () => {
+        await updateDoc(doc(db, "videos", vId), { views: parseInt(document.getElementById('admViews').value), likes: parseInt(document.getElementById('admLikes').value) });
+        await updateDoc(doc(db, "users", authorId), { subCount: parseInt(document.getElementById('admSubs').value) });
+        alert("保存しました");
+    };
 
-                // 自分の動画なら削除ボタンを表示
-                if (user && vd.userId === user.uid) {
-                    const delBtn = document.createElement('button');
-                    delBtn.className = "del-btn";
-                    delBtn.innerHTML = "🗑️";
-                    delBtn.title = "動画を削除";
-                    delBtn.onclick = async (e) => {
-                        e.preventDefault();
-                        if(confirm("この動画を削除してもよろしいですか？")) {
-                            await deleteDoc(doc(db, "videos", vId));
-                            alert("削除しました");
-                        }
-                    };
-                    wrapper.appendChild(delBtn);
-                }
+    window.adminDelete = async () => { if(confirm("動画を削除しますか？")) { await deleteDoc(doc(db, "videos", vId)); location.href = "index.html"; } };
 
-                grid.appendChild(wrapper);
+    async function sendComment(text = "", parentId = null) {
+        const input = document.getElementById(parentId ? `ri-${parentId}` : 'commentInput');
+        if (!input.value || !user) return;
+        const ud = (await getDoc(doc(db, "users", user.uid))).data();
+        await addDoc(collection(db, "comments"), { videoId: vId, userId: user.uid, text: input.value, userName: ud.name, userIcon: ud.icon, parentId: parentId, createdAt: serverTimestamp() });
+        input.value = "";
+    }
+    document.getElementById('commentBtn').onclick = () => sendComment();
 
-                // サムネイル処理
+    function loadComments() {
+        onSnapshot(query(collection(db, "comments"), where("videoId", "==", vId)), snap => {
+            const list = document.getElementById('commentList'); list.innerHTML = "";
+            const all = []; snap.forEach(d => all.push({id: d.id, ...d.data()}));
+            all.filter(c => !c.parentId).sort((a,b)=>b.createdAt - a.createdAt).forEach(c => {
+                const div = document.createElement('div'); div.className = "comment-item";
+                div.innerHTML = `<img src="${c.userIcon}" class="c-icon"><div class="c-body"><div class="c-name">${c.userName}</div><div class="c-text">${c.text}</div></div>`;
+                list.appendChild(div);
+            });
+        });
+    }
+
+    function loadSideVideos() {
+        onSnapshot(collection(db, "videos"), snap => {
+            const grid = document.getElementById('sideGrid'); grid.innerHTML = "";
+            snap.forEach(vDoc => {
+                if(vDoc.id === vId) return;
+                const vd = vDoc.data(); const sid = `s-thumb-${vDoc.id}`;
+                const div = document.createElement('div'); div.className = "side-v-card";
+                div.onclick = () => location.href = `watch.html?id=${vDoc.id}`;
+                div.innerHTML = `<div class="side-thumb-container"><img src="" class="side-thumb" id="${sid}"></div><div class="side-info"><div class="side-title">${vd.title}</div></div>`;
+                grid.appendChild(div);
                 const img = document.getElementById(sid);
-                if(vd.thumbnail) { img.src = vd.thumbnail; img.style.opacity = 1; }
-                else { generateThumb(vd.url, img); }
-
-                // 投稿者アイコン表示
-                const uSnap = await getDoc(doc(db, "users", vd.userId));
-                if(uSnap.exists()) document.getElementById(`icon-${vId}`).src = uSnap.data().icon || "";
+                if(vd.thumbnail) { img.src = vd.thumbnail; img.style.opacity = 1; } else { generateThumb(vd.url, img); }
             });
         });
     }
