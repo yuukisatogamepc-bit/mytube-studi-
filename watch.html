@@ -5,48 +5,79 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>再生 - iroTube</title>
     <style>
-        body { font-family: sans-serif; margin: 0; background: #fff; }
-        header { padding: 10px 20px; border-bottom: 1px solid #eee; }
+        body { font-family: sans-serif; margin: 0; background: #fff; display: flex; flex-direction: column; align-items: center; }
+        header { width: 100%; padding: 10px 20px; border-bottom: 1px solid #eee; box-sizing: border-box; }
         .logo { font-size: 20px; font-weight: bold; text-decoration: none; color: #007bff; }
         
-        .main-content { max-width: 1200px; margin: 20px auto; padding: 0 20px; }
+        .container { display: flex; max-width: 1200px; width: 100%; gap: 20px; padding: 20px; box-sizing: border-box; }
+        .main-col { flex: 2; }
+        .side-col { flex: 1; }
+
         video { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 12px; }
+        .v-title { font-size: 20px; font-weight: bold; margin: 15px 0; }
         
-        .v-info { margin-top: 15px; }
-        .v-title { font-size: 20px; font-weight: bold; margin-bottom: 10px; }
+        .action-bar { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        .author-info { display: flex; align-items: center; gap: 10px; }
+        .author-icon { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
+        .author-name { font-weight: bold; text-decoration: none; color: #000; }
         
-        /* 投稿者エリアのデザイン */
-        .author-area { display: flex; align-items: center; gap: 12px; margin-top: 15px; padding: 10px 0; border-top: 1px solid #eee; }
-        .author-icon { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #eee; cursor: pointer; }
-        .author-name { font-weight: bold; text-decoration: none; color: #000; font-size: 16px; }
-        .author-name:hover { text-decoration: underline; }
-        
-        .v-stats { color: #606060; font-size: 14px; margin-top: 8px; }
+        .btn-group { display: flex; gap: 10px; }
+        .btn { padding: 8px 16px; border-radius: 20px; border: none; cursor: pointer; font-weight: bold; }
+        .btn-like { background: #eee; }
+        .btn-sub { background: #000; color: #fff; }
+
+        /* コメント欄 */
+        .comment-section { margin-top: 20px; }
+        .comment-input { width: 100%; padding: 10px; border: none; border-bottom: 1px solid #ddd; margin-bottom: 10px; outline: none; }
+        .comment-item { display: flex; gap: 10px; margin-bottom: 15px; font-size: 14px; }
+        .comment-text { line-height: 1.4; }
+
+        /* 関連動画 */
+        .side-card { display: flex; gap: 10px; text-decoration: none; color: #000; margin-bottom: 12px; }
+        .side-thumb { width: 120px; aspect-ratio: 16/9; background: #eee; border-radius: 8px; object-fit: cover; }
+        .side-title { font-size: 13px; font-weight: bold; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
     </style>
 </head>
 <body>
 
-<header>
-    <a href="index.html" class="logo">iroTube</a>
-</header>
+<header><a href="index.html" class="logo">iroTube</a></header>
 
-<div class="main-content">
-    <video id="player" controls autoplay></video>
-    
-    <div class="v-info">
+<div class="container">
+    <div class="main-col">
+        <video id="player" controls autoplay></video>
         <div id="vTitle" class="v-title">読み込み中...</div>
-        <div id="vStats" class="v-stats">視聴回数 0回</div>
         
-        <div class="author-area">
-            <a id="authorLink1" href="#"><img src="" id="authorIcon" class="author-icon"></a>
-            <a id="authorLink2" href="#" class="author-name">読み込み中...</a>
+        <div class="action-bar">
+            <div class="author-info">
+                <a id="authorLink" href=""><img id="authorIcon" class="author-icon" src=""></a>
+                <div>
+                    <a id="authorName" href="" class="author-name">読み込み中...</a>
+                    <div id="subCount" style="font-size:12px; color:#606060;">登録者 0人</div>
+                </div>
+                <button class="btn btn-sub" id="subBtn">チャンネル登録</button>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-like" id="likeBtn">👍 <span id="likeCount">0</span></button>
+            </div>
         </div>
+
+        <div class="comment-section">
+            <h3 id="commentHeader">コメント 0件</h3>
+            <input type="text" id="commentInput" class="comment-input" placeholder="コメントを追加...">
+            <div id="commentList"></div>
+        </div>
+    </div>
+
+    <div class="side-col">
+        <h4>関連動画</h4>
+        <div id="relatedList"></div>
     </div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, getDocs, collection, query, limit, updateDoc, increment, addDoc, serverTimestamp, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o",
@@ -59,50 +90,85 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-
-    // URLから動画IDを取得
+    const auth = getAuth(app);
     const params = new URLSearchParams(window.location.search);
     const vid = params.get("id");
+    let currentUser = null;
 
-    if (vid) {
-        loadVideo();
-    } else {
-        location.href = "index.html";
-    }
+    onAuthStateChanged(auth, user => { currentUser = user; });
 
-    async function loadVideo() {
+    if (vid) { loadWatchPage(); }
+
+    async function loadWatchPage() {
         const vSnap = await getDoc(doc(db, "videos", vid));
-        if (vSnap.exists()) {
-            const v = vSnap.data();
-            
-            // 動画再生・タイトル設定
-            document.getElementById('player').src = v.url;
-            document.getElementById('vTitle').innerText = v.title;
-            document.getElementById('vStats').innerText = `${(v.views || 0).toLocaleString()}回視聴`;
+        if (!vSnap.exists()) return;
+        const v = vSnap.data();
+        
+        // 1. 動画再生とタイトル
+        document.getElementById('player').src = v.url;
+        document.getElementById('vTitle').innerText = v.title;
+        document.getElementById('likeCount').innerText = v.likes || 0;
 
-            // 投稿者（作者）の情報を取得
-            const uSnap = await getDoc(doc(db, "users", v.userId));
-            if (uSnap.exists()) {
-                const ud = uSnap.data();
-                const authorId = v.userId; // これが投稿者のID
-
-                // リンク先を「投稿者のID」に修正
-                const channelUrl = `channel.html?id=${authorId}`;
-                document.getElementById('authorLink1').href = channelUrl;
-                document.getElementById('authorLink2').href = channelUrl;
-                
-                document.getElementById('authorIcon').src = ud.icon || "";
-                document.getElementById('authorLink2').innerText = ud.name || "名称未設定";
-            }
-
-            // 視聴回数を＋1（簡易カウント）
-            updateDoc(doc(db, "videos", vid), {
-                views: increment(1)
-            });
-        } else {
-            alert("動画が見つかりません");
-            location.href = "index.html";
+        // 2. 投稿者情報の取得 (遷移先の修正)
+        const uSnap = await getDoc(doc(db, "users", v.userId));
+        if (uSnap.exists()) {
+            const ud = uSnap.data();
+            const channelUrl = `channel.html?id=${v.userId}`; // ここを投稿者IDに固定
+            document.getElementById('authorLink').href = channelUrl;
+            document.getElementById('authorName').href = channelUrl;
+            document.getElementById('authorName').innerText = ud.name;
+            document.getElementById('authorIcon').src = ud.icon || "";
         }
+
+        // 3. 高評価機能
+        document.getElementById('likeBtn').onclick = async () => {
+            if (!currentUser) return alert("ログインが必要です");
+            await updateDoc(doc(db, "videos", vid), { likes: increment(1) });
+            document.getElementById('likeCount').innerText = parseInt(document.getElementById('likeCount').innerText) + 1;
+        };
+
+        // 4. コメント機能
+        const cCol = collection(db, "videos", vid, "comments");
+        onSnapshot(cCol, snap => {
+            document.getElementById('commentHeader').innerText = `コメント ${snap.size}件`;
+            document.getElementById('commentList').innerHTML = "";
+            snap.forEach(doc => {
+                const c = doc.data();
+                document.getElementById('commentList').innerHTML += `
+                    <div class="comment-item">
+                        <div class="comment-text"><strong>${c.userName}</strong><br>${c.text}</div>
+                    </div>`;
+            });
+        });
+
+        document.getElementById('commentInput').onkeypress = async (e) => {
+            if (e.key === 'Enter' && currentUser) {
+                const uSnap = await getDoc(doc(db, "users", currentUser.uid));
+                await addDoc(cCol, {
+                    text: e.target.value,
+                    userName: uSnap.data().name,
+                    userId: currentUser.uid,
+                    createdAt: serverTimestamp()
+                });
+                e.target.value = "";
+            }
+        };
+
+        // 5. 関連動画 (全動画からランダムに取得)
+        const vCols = await getDocs(query(collection(db, "videos"), limit(10)));
+        vCols.forEach(doc => {
+            if (doc.id !== vid) {
+                const rv = doc.data();
+                document.getElementById('relatedList').innerHTML += `
+                    <a href="watch.html?id=${doc.id}" class="side-card">
+                        <img class="side-thumb" src="${rv.thumbnail || ''}">
+                        <div class="side-title">${rv.title}</div>
+                    </a>`;
+            }
+        });
+
+        // 視聴回数アップ
+        updateDoc(doc(db, "videos", vid), { views: increment(1) });
     }
 </script>
 </body>
