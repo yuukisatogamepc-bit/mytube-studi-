@@ -26,7 +26,6 @@
         .btn-sub.active { background: #eee; color: #606060; }
         
         .admin-del-btn { background: #ff4d4d; color: #fff; font-size: 12px; display: none; padding: 8px 12px; border-radius: 5px; border: none; cursor: pointer; }
-        /* 管理者用編集スタイル */
         .admin-editable { cursor: pointer; border-bottom: 1px dashed #ccc; }
         .admin-editable:hover { background: #fffde7; }
 
@@ -108,7 +107,6 @@
 
     if (vid) { loadWatchPage(); }
 
-    // 管理者用：数値クリック編集機能
     function setupAdminEditing() {
         const editFields = [
             { id: 'viewCountDisplay', key: 'views', refPath: () => doc(db, "videos", vid) },
@@ -121,16 +119,16 @@
 
         editFields.forEach(field => {
             const el = document.getElementById(field.id);
+            if(!el) return;
             el.classList.add('admin-editable');
-            el.title = "クリックして数値を変更";
-            el.onclick = async () => {
-                const newVal = prompt("新しい数値を入力してください:", el.innerText.replace(/,/g, ''));
+            el.onclick = async (e) => {
+                e.stopPropagation(); // 重複動作防止
+                const newVal = prompt("数値を変更:", el.innerText.replace(/,/g, ''));
                 if (newVal !== null && !isNaN(newVal)) {
                     const targetRef = typeof field.refPath === 'function' && field.refPath.constructor.name === 'AsyncFunction' 
                                       ? await field.refPath() : field.refPath();
                     await updateDoc(targetRef, { [field.key]: parseInt(newVal) });
                     el.innerText = parseInt(newVal).toLocaleString();
-                    alert("更新しました");
                 }
             };
         });
@@ -165,7 +163,7 @@
         document.getElementById('likeCount').innerText = v.likes || 0;
 
         document.getElementById('adminDelBtn').onclick = async () => {
-            if (confirm("管理者として、この動画を完全に削除しますか？")) {
+            if (confirm("管理者として動画を削除しますか？")) {
                 await deleteDoc(vRef);
                 location.href = "index.html";
             }
@@ -183,6 +181,7 @@
             document.getElementById('subCountDisplay').innerText = (ud.subscribers || 0).toLocaleString();
         }
 
+        // 高評価ボタン
         document.getElementById('likeBtn').onclick = async () => {
             if (!currentUser) return alert("ログインが必要です");
             const btn = document.getElementById('likeBtn');
@@ -200,6 +199,7 @@
             }
         };
 
+        // 登録ボタン
         document.getElementById('subBtn').onclick = async () => {
             if (!currentUser) return alert("ログインが必要です");
             const sBtn = document.getElementById('subBtn');
