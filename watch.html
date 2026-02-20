@@ -7,54 +7,43 @@
         body { font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif; margin: 0; background: #fff; color: #000; display: flex; flex-direction: column; align-items: center; }
         header { width: 100%; padding: 12px 20px; border-bottom: 1px solid #f2f2f2; box-sizing: border-box; }
         .logo { font-size: 20px; font-weight: bold; text-decoration: none; color: #ff0000; }
-        
         .container { max-width: 800px; width: 100%; padding: 20px; box-sizing: border-box; }
-        
         .video-wrapper { width: 100%; background: #000; border-radius: 8px; overflow: hidden; line-height: 0; }
-        video { width: 100%; aspect-ratio: 16/9; }
-
+        /* 動画再生を確実にするためのスタイル */
+        video { width: 100%; aspect-ratio: 16/9; background: #000; display: block; }
         .v-title { font-size: 18px; font-weight: bold; margin: 20px 0 8px; }
         .v-meta { font-size: 13px; color: #606060; margin-bottom: 15px; }
-
         .action-bar { display: flex; align-items: center; justify-content: space-between; padding-bottom: 20px; border-bottom: 1px solid #f2f2f2; }
         .author-section { display: flex; align-items: center; gap: 12px; }
         .author-icon { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #eee; }
         .author-name-wrap { display: flex; flex-direction: column; }
         .author-name { font-weight: bold; font-size: 14px; display: flex; align-items: center; gap: 4px; }
         .sub-count { font-size: 11px; color: #606060; margin-top: 2px; }
-        
         .btn-group { display: flex; align-items: center; gap: 8px; }
         .btn-sub { background: #ff0000; color: #fff; padding: 8px 16px; border-radius: 20px; border: none; font-weight: bold; font-size: 13px; cursor: pointer; }
         .btn-like { background: #f2f2f2; color: #000; padding: 8px 14px; border-radius: 20px; border: none; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 5px; }
         .btn-del { background: #ff7070; color: #fff; padding: 8px 16px; border-radius: 10px; border: none; font-weight: bold; font-size: 13px; cursor: pointer; display: none; }
-
         .comment-section { margin-top: 25px; }
         .comment-header { font-size: 16px; font-weight: bold; margin-bottom: 20px; }
         .comment-input-wrap { margin-bottom: 25px; }
         .comment-input { width: 100%; border: none; border-bottom: 1px solid #ddd; padding: 8px 0; font-size: 14px; outline: none; }
-        
         .comment-list { margin-top: 20px; }
         .comment-item { margin-bottom: 20px; font-size: 14px; }
-
         .admin-badge { color: #ff0000; font-weight: bold; font-size: 12px; }
         .official-badge { color: #007bff; font-weight: bold; font-size: 12px; }
-
-        /* 管理者用：クリック可能であることを示すスタイル */
         .admin-editable { cursor: pointer; text-decoration: underline dotted; }
     </style>
 </head>
 <body>
 
-<header>
-    <a href="index.html" class="logo">Mvideo</a>
-</header>
+<header><a href="index.html" class="logo">Mvideo</a></header>
 
 <div class="container">
     <div class="video-wrapper">
-        <video id="player" controls playsinline autoplay></video>
+        <video id="player" controls playsinline></video>
     </div>
 
-    <div id="vTitle" class="v-title">読み込み中...</div>
+    <div id="vTitle" class="v-title">動画を読み込んでいます...</div>
     <div class="v-meta">再生回数 <span id="viewNum" class="stat-val">0</span>回</div>
 
     <div class="action-bar">
@@ -83,7 +72,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, collection, query, updateDoc, addDoc, serverTimestamp, onSnapshot, deleteDoc, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, collection, query, updateDoc, addDoc, serverTimestamp, onSnapshot, deleteDoc, orderBy, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = { 
@@ -106,9 +95,7 @@
 
     onAuthStateChanged(auth, user => {
         currentUser = user;
-        if(user && vid) {
-            if(user.uid === ADMIN_UID) setupAdmin();
-        }
+        if(user && vid && user.uid === ADMIN_UID) setupAdmin();
     });
 
     function getBadge(uid) {
@@ -118,25 +105,45 @@
     }
 
     async function load() {
-        if(!vid) return;
+        if(!vid) {
+            document.getElementById('vTitle').innerText = "動画IDがありません";
+            return;
+        }
+
         const vRef = doc(db, "videos", vid);
         const vSnap = await getDoc(vRef);
-        if(!vSnap.exists()) return;
+        
+        if(!vSnap.exists()) {
+            document.getElementById('vTitle').innerText = "動画が見つかりませんでした";
+            return;
+        }
+
         const v = vSnap.data();
         videoAuthorId = v.userId;
 
         const player = document.getElementById('player');
-        player.src = v.url;
-        player.load();
+        
+        // 重要：CloudinaryのURLを確実にセットし、再生をリトライする設定
+        if (v.url) {
+            player.src = v.url;
+            player.load(); // ソースの読み込み
+            // 自動再生（ブラウザ制限によりミュートが必要な場合があるため、再生だけ試みる）
+            player.play().catch(e => console.log("Auto-play blocked, waiting for user interaction."));
+        } else {
+            document.getElementById('vTitle').innerText = "動画URLが無効です";
+        }
 
         document.getElementById('vTitle').innerText = v.title;
         document.getElementById('viewNum').innerText = v.views || 0;
         document.getElementById('likeNum').innerText = v.likes || 0;
 
+        // 再生数カウントアップ
+        await updateDoc(vRef, { views: increment(1) });
+
         const uSnap = await getDoc(doc(db, "users", v.userId));
         if(uSnap.exists()) {
             const userData = uSnap.data();
-            document.getElementById('authorName').innerHTML = userData.name + getBadge(v.userId);
+            document.getElementById('authorName').innerHTML = (userData.name || "不明") + getBadge(v.userId);
             document.getElementById('authorIcon').src = userData.icon || "";
             document.getElementById('subNum').innerText = userData.subscribers || 0;
         }
@@ -156,35 +163,26 @@
     }
 
     function setupAdmin() {
-        // 削除ボタン表示
         document.getElementById('adminDelBtn').style.display = "block";
         document.getElementById('adminDelBtn').onclick = async () => {
-            if(confirm("管理権限でこの動画を削除しますか？")) { await deleteDoc(doc(db, "videos", vid)); location.href="index.html"; }
+            if(confirm("管理権限で削除しますか？")) { await deleteDoc(doc(db, "videos", vid)); location.href="index.html"; }
         };
 
-        // 各数値を編集可能にする
         const editableElements = document.querySelectorAll('.stat-val');
         editableElements.forEach(el => {
             el.classList.add('admin-editable');
             el.onclick = async () => {
                 const currentVal = el.innerText;
-                const newVal = prompt("数値を変更しますか？", currentVal);
+                const newVal = prompt("数値を変更:", currentVal);
                 if (newVal !== null && !isNaN(newVal)) {
                     const num = parseInt(newVal);
-                    try {
-                        if (el.id === "subNum") {
-                            // チャンネル登録者数はユーザー側のドキュメント
-                            await updateDoc(doc(db, "users", videoAuthorId), { subscribers: num });
-                        } else {
-                            // 再生数・いいね数は動画側のドキュメント
-                            const key = el.id === "viewNum" ? "views" : "likes";
-                            await updateDoc(doc(db, "videos", vid), { [key]: num });
-                        }
-                        el.innerText = num;
-                        alert("更新しました");
-                    } catch (e) {
-                        alert("更新に失敗しました");
+                    if (el.id === "subNum") {
+                        await updateDoc(doc(db, "users", videoAuthorId), { subscribers: num });
+                    } else {
+                        const key = el.id === "viewNum" ? "views" : "likes";
+                        await updateDoc(doc(db, "videos", vid), { [key]: num });
                     }
+                    el.innerText = num;
                 }
             };
         });
