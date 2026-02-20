@@ -2,115 +2,185 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>再生 - Mvideo</title>
+    <title>動画投稿 - Mvideo</title>
     <style>
         body { font-family: sans-serif; margin: 0; background: #fff; display: flex; flex-direction: column; align-items: center; }
         header { width: 100%; padding: 10px 20px; border-bottom: 1px solid #eee; box-sizing: border-box; }
         .logo { font-size: 22px; font-weight: bold; text-decoration: none; color: #ff0000; }
-        .container { display: flex; max-width: 1200px; width: 100%; gap: 20px; padding: 20px; box-sizing: border-box; }
-        .main-col { flex: 2; }
-        /* 動画プレイヤーのサイズと背景 */
-        video { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 12px; outline: none; }
-        .v-title { font-size: 20px; font-weight: bold; margin: 15px 0; }
-        .author-info { display: flex; align-items: center; gap: 10px; }
-        .author-icon { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
-        .btn-sub { background: #ff0000; color: #fff; padding: 8px 16px; border-radius: 20px; border: none; font-weight: bold; cursor: pointer; }
-        .admin-badge { color: #ff0000; font-weight: bold; margin-left: 4px; }
-        .official-badge { color: #007bff; font-weight: bold; margin-left: 4px; }
-        .stat-val { font-weight: bold; }
-        .comment-item { margin-bottom: 15px; border-bottom: 1px solid #f9f9f9; padding-bottom: 10px; }
+        .container { max-width: 600px; width: 100%; padding: 40px 20px; box-sizing: border-box; }
+        h2 { margin-bottom: 30px; }
+        .input-group { margin-bottom: 20px; text-align: left; }
+        label { display: block; font-size: 14px; color: #606060; margin-bottom: 8px; font-weight: bold; }
+        input[type="text"] { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+        .file-box { border: 2px dashed #ddd; padding: 20px; border-radius: 8px; text-align: center; cursor: pointer; transition: 0.2s; margin-bottom: 10px; }
+        .file-box:hover { border-color: #ff0000; background: #fffafa; }
+        .btn-upload { width: 100%; padding: 15px; border-radius: 30px; border: none; background: #ff0000; color: #fff; font-weight: bold; font-size: 16px; cursor: pointer; margin-top: 20px; }
+        .btn-upload:disabled { background: #ccc; cursor: not-allowed; }
+        .loading { font-size: 14px; color: #ff0000; margin-top: 10px; display: none; font-weight: bold; }
+        .preview-img { width: 100%; max-height: 200px; object-fit: cover; margin-top: 10px; display: none; border-radius: 8px; }
     </style>
 </head>
 <body>
-<header><a href="index.html" class="logo">Mvideo</a></header>
+
+<header>
+    <a href="index.html" class="logo">Mvideo</a>
+</header>
+
 <div class="container">
-    <div class="main-col">
-        <video id="player" controls playsinline></video>
-        <div id="vTitle" class="v-title">読み込み中...</div>
-        <div style="font-size:14px; color:#606060; margin-bottom:10px;">再生回数 <span id="viewNum" class="stat-val">0</span>回</div>
-        <div class="author-info">
-            <img id="authorIcon" class="author-icon">
-            <div>
-                <div id="authorName" style="font-weight:bold;">読み込み中...</div>
-                <div style="font-size:12px; color:#606060;">登録者 <span id="subNum" class="stat-val">0</span>人</div>
-            </div>
-            <button class="btn-sub" id="subBtn">チャンネル登録</button>
-        </div>
-        <div id="commentList" style="margin-top:20px;"></div>
+    <h2>動画を投稿する</h2>
+    
+    <div class="input-group">
+        <label>タイトル</label>
+        <input type="text" id="vTitle" placeholder="動画のタイトルを入力">
     </div>
+
+    <div class="input-group">
+        <label>動画ファイル (mp4, movなど)</label>
+        <div class="file-box" onclick="document.getElementById('videoInput').click()">
+            <span id="vStatus">クリックして動画を選択</span>
+            <input type="file" id="videoInput" accept="video/*" style="display:none">
+        </div>
+        <div id="vLoading" class="loading"></div>
+        <input type="hidden" id="finalVideoUrl">
+    </div>
+
+    <div class="input-group">
+        <label>サムネイル画像 (任意)</label>
+        <div class="file-box" onclick="document.getElementById('thumbInput').click()">
+            <span id="tStatus">クリックして画像を選択</span>
+            <input type="file" id="thumbInput" accept="image/*" style="display:none">
+            <img id="thumbPreview" class="preview-img">
+        </div>
+        <div id="tLoading" class="loading"></div>
+        <input type="hidden" id="finalThumbUrl">
+    </div>
+
+    <button class="btn-upload" id="submitBtn">公開する</button>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, collection, query, orderBy, onSnapshot, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-    import { getAuth } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-    const firebaseConfig = { 
-        apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o", 
-        authDomain: "mytube-f4544.firebaseapp.com", 
-        projectId: "mytube-f4544", 
-        storageBucket: "mytube-f4544.firebasestorage.app", 
-        messagingSenderId: "655444283107", 
-        appId: "1:655444283107:web:04f9173faf2d951790ffd6" 
+    const CLOUD_NAME = "du5blunb0"; 
+    const UPLOAD_PRESET = "mytube_preset"; 
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o",
+        authDomain: "mytube-f4544.firebaseapp.com",
+        projectId: "mytube-f4544",
+        storageBucket: "mytube-f4544.firebasestorage.app",
+        messagingSenderId: "655444283107",
+        appId: "1:655444283107:web:04f9173faf2d951790ffd6"
     };
-    
+
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-    const vid = new URLSearchParams(window.location.search).get("id");
-    
-    const ADMIN_UID = "tP5CqCTRO3f2QQ8jdoj0ftY8kZU2";
-    const OFFICIAL_UID = "UUgBXquGY5O2iDADKpwNUU0i5Ct2";
+    const auth = getAuth(app);
 
-    function getBadge(uid) {
-        if(uid === ADMIN_UID) return '<span class="admin-badge">[運営]</span>';
-        if(uid === OFFICIAL_UID) return '<span class="official-badge">[公式]</span>';
-        return '';
-    }
+    let uid = null;
+    onAuthStateChanged(auth, user => {
+        if (!user) location.href = "login.html";
+        uid = user.uid;
+    });
 
-    async function load() {
-        if(!vid) return;
-        
-        const vRef = doc(db, "videos", vid);
-        const vSnap = await getDoc(vRef);
-        
-        if (vSnap.exists()) {
-            const v = vSnap.data();
-            const player = document.getElementById('player');
+    async function uploadLargeFile(file, type) {
+        const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${type}/upload`;
+        const chunkSize = 6000000; 
+        const uniqueUploadId = Date.now() + Math.random().toString(36).substring(7);
+        const totalSize = file.size;
+        let start = 0;
+        let lastResponse;
+
+        while (start < totalSize) {
+            const end = Math.min(start + chunkSize, totalSize);
+            const chunk = file.slice(start, end);
+            const formData = new FormData();
+            formData.append("file", chunk);
+            formData.append("upload_preset", UPLOAD_PRESET);
             
-            // CloudinaryのURLを確実にセット
-            player.src = v.url;
-            player.load(); // 動画ソースの再読み込みを強制
-
-            document.getElementById('vTitle').innerText = v.title;
-            document.getElementById('viewNum').innerText = v.views || 0;
+            const contentRange = `bytes ${start}-${end - 1}/${totalSize}`;
             
-            // 再生回数をカウントアップ
-            await updateDoc(vRef, { views: increment(1) });
-
-            // 投稿者情報の取得
-            const uSnap = await getDoc(doc(db, "users", v.userId));
-            if (uSnap.exists()) {
-                const userData = uSnap.data();
-                document.getElementById('authorName').innerHTML = (userData.name || "不明") + getBadge(v.userId);
-                document.getElementById('authorIcon').src = userData.icon || "";
-                document.getElementById('subNum').innerText = userData.subscribers || 0;
-            }
-
-            // コメントのリアルタイム取得
-            onSnapshot(query(collection(db, "videos", vid, "comments"), orderBy("createdAt", "desc")), snap => {
-                const list = document.getElementById('commentList');
-                list.innerHTML = "<h3>コメント</h3>";
-                snap.forEach(d => {
-                    const c = d.data();
-                    list.innerHTML += `<div class="comment-item"><strong>${c.userName || '匿名'}${getBadge(c.userId)}</strong>: ${c.text}</div>`;
-                });
+            const res = await fetch(url, {
+                method: "POST",
+                body: formData,
+                headers: {
+                    "X-Unique-Upload-Id": uniqueUploadId,
+                    "Content-Range": contentRange
+                }
             });
-        } else {
-            document.getElementById('vTitle').innerText = "動画が見つかりません。";
+
+            lastResponse = await res.json();
+            const percent = Math.round((end / totalSize) * 100);
+            const display = type === 'video' ? document.getElementById('vLoading') : document.getElementById('tLoading');
+            display.style.display = 'block';
+            display.innerText = `${type === 'video' ? '動画' : '画像'}アップロード中... ${percent}%`;
+
+            start = end;
         }
+        return lastResponse;
     }
 
-    load();
+    document.getElementById('videoInput').onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const btn = document.getElementById('submitBtn');
+        btn.disabled = true;
+        try {
+            const data = await uploadLargeFile(file, "video");
+            // 隠しinputにURLを保存
+            document.getElementById('finalVideoUrl').value = data.secure_url;
+            document.getElementById('vLoading').innerText = "動画アップロード完了！";
+        } catch (err) {
+            alert("動画アップロード失敗");
+        } finally {
+            btn.disabled = false;
+        }
+    };
+
+    document.getElementById('thumbInput').onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const btn = document.getElementById('submitBtn');
+        btn.disabled = true;
+        try {
+            const data = await uploadLargeFile(file, "image");
+            document.getElementById('finalThumbUrl').value = data.secure_url;
+            document.getElementById('thumbPreview').src = data.secure_url;
+            document.getElementById('thumbPreview').style.display = 'block';
+            document.getElementById('tLoading').innerText = "サムネイルアップロード完了！";
+        } catch (err) {
+            alert("サムネイルアップロード失敗");
+        } finally {
+            btn.disabled = false;
+        }
+    };
+
+    document.getElementById('submitBtn').onclick = async () => {
+        const title = document.getElementById('vTitle').value.trim();
+        const vUrl = document.getElementById('finalVideoUrl').value;
+        const tUrl = document.getElementById('finalThumbUrl').value;
+        
+        // デバッグ用: もしエラーが出るならここを確認
+        if (!title) return alert("タイトルを入力してください");
+        if (!vUrl) return alert("動画のアップロードが完了するまでお待ちください");
+
+        try {
+            await addDoc(collection(db, "videos"), {
+                title: title,
+                url: vUrl,
+                thumbnail: tUrl || "", 
+                userId: uid,
+                views: 0,
+                createdAt: serverTimestamp()
+            });
+            alert("公開完了しました！");
+            location.href = "index.html";
+        } catch (e) {
+            alert("エラー: " + e.message);
+        }
+    };
 </script>
 </body>
 </html>
