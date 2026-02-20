@@ -9,29 +9,33 @@
         .logo { font-size: 20px; font-weight: bold; text-decoration: none; color: #ff0000; }
         .container { max-width: 800px; width: 100%; padding: 20px; box-sizing: border-box; }
         .video-wrapper { width: 100%; background: #000; border-radius: 8px; overflow: hidden; line-height: 0; }
-        /* 動画再生を確実にするためのスタイル */
         video { width: 100%; aspect-ratio: 16/9; background: #000; display: block; }
+
         .v-title { font-size: 18px; font-weight: bold; margin: 20px 0 8px; }
         .v-meta { font-size: 13px; color: #606060; margin-bottom: 15px; }
+
         .action-bar { display: flex; align-items: center; justify-content: space-between; padding-bottom: 20px; border-bottom: 1px solid #f2f2f2; }
         .author-section { display: flex; align-items: center; gap: 12px; }
         .author-icon { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #eee; }
         .author-name-wrap { display: flex; flex-direction: column; }
         .author-name { font-weight: bold; font-size: 14px; display: flex; align-items: center; gap: 4px; }
         .sub-count { font-size: 11px; color: #606060; margin-top: 2px; }
+        
         .btn-group { display: flex; align-items: center; gap: 8px; }
-        .btn-sub { background: #ff0000; color: #fff; padding: 8px 16px; border-radius: 20px; border: none; font-weight: bold; font-size: 13px; cursor: pointer; }
+        .btn-sub { background: #ff0000; color: #fff; padding: 8px 24px; border-radius: 20px; border: none; font-weight: bold; font-size: 13px; cursor: pointer; }
         .btn-like { background: #f2f2f2; color: #000; padding: 8px 14px; border-radius: 20px; border: none; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 5px; }
         .btn-del { background: #ff7070; color: #fff; padding: 8px 16px; border-radius: 10px; border: none; font-weight: bold; font-size: 13px; cursor: pointer; display: none; }
+
         .comment-section { margin-top: 25px; }
         .comment-header { font-size: 16px; font-weight: bold; margin-bottom: 20px; }
         .comment-input-wrap { margin-bottom: 25px; }
         .comment-input { width: 100%; border: none; border-bottom: 1px solid #ddd; padding: 8px 0; font-size: 14px; outline: none; }
         .comment-list { margin-top: 20px; }
         .comment-item { margin-bottom: 20px; font-size: 14px; }
+
         .admin-badge { color: #ff0000; font-weight: bold; font-size: 12px; }
         .official-badge { color: #007bff; font-weight: bold; font-size: 12px; }
-        .admin-editable { cursor: pointer; text-decoration: underline dotted; }
+        .admin-editable { cursor: pointer; border-bottom: 1px dotted #ccc; }
     </style>
 </head>
 <body>
@@ -43,7 +47,7 @@
         <video id="player" controls playsinline></video>
     </div>
 
-    <div id="vTitle" class="v-title">動画を読み込んでいます...</div>
+    <div id="vTitle" class="v-title"></div>
     <div class="v-meta">再生回数 <span id="viewNum" class="stat-val">0</span>回</div>
 
     <div class="action-bar">
@@ -90,6 +94,7 @@
     const vid = new URLSearchParams(window.location.search).get("id");
     const ADMIN_UID = "tP5CqCTRO3f2QQ8jdoj0ftY8kZU2";
     const OFFICIAL_UID = "UUgBXquGY5O2iDADKpwNUU0i5Ct2";
+    
     let currentUser = null;
     let videoAuthorId = "";
 
@@ -105,47 +110,38 @@
     }
 
     async function load() {
-        if(!vid) {
-            document.getElementById('vTitle').innerText = "動画IDがありません";
-            return;
-        }
-
+        if(!vid) return;
         const vRef = doc(db, "videos", vid);
         const vSnap = await getDoc(vRef);
-        
-        if(!vSnap.exists()) {
-            document.getElementById('vTitle').innerText = "動画が見つかりませんでした";
-            return;
-        }
-
+        if(!vSnap.exists()) return;
         const v = vSnap.data();
         videoAuthorId = v.userId;
 
         const player = document.getElementById('player');
         
-        // 重要：CloudinaryのURLを確実にセットし、再生をリトライする設定
-        if (v.url) {
-            player.src = v.url;
-            player.load(); // ソースの読み込み
-            // 自動再生（ブラウザ制限によりミュートが必要な場合があるため、再生だけ試みる）
-            player.play().catch(e => console.log("Auto-play blocked, waiting for user interaction."));
-        } else {
-            document.getElementById('vTitle').innerText = "動画URLが無効です";
+        // 再生の問題を解決：type属性を明示的に指定して追加
+        if(v.url) {
+            const source = document.createElement('source');
+            source.src = v.url;
+            // CloudinaryのURLに合わせてタイプを判定（基本はvideo/mp4で動作します）
+            source.type = "video/mp4";
+            player.appendChild(source);
+            player.load();
         }
 
         document.getElementById('vTitle').innerText = v.title;
         document.getElementById('viewNum').innerText = v.views || 0;
         document.getElementById('likeNum').innerText = v.likes || 0;
 
-        // 再生数カウントアップ
+        // 再生数カウント
         await updateDoc(vRef, { views: increment(1) });
 
         const uSnap = await getDoc(doc(db, "users", v.userId));
         if(uSnap.exists()) {
-            const userData = uSnap.data();
-            document.getElementById('authorName').innerHTML = (userData.name || "不明") + getBadge(v.userId);
-            document.getElementById('authorIcon').src = userData.icon || "";
-            document.getElementById('subNum').innerText = userData.subscribers || 0;
+            const u = uSnap.data();
+            document.getElementById('authorName').innerHTML = (u.name || "不明") + getBadge(v.userId);
+            document.getElementById('authorIcon').src = u.icon || "";
+            document.getElementById('subNum').innerText = u.subscribers || 0;
         }
 
         onSnapshot(query(collection(db, "videos", vid, "comments"), orderBy("createdAt", "desc")), snap => {
@@ -154,10 +150,7 @@
             list.innerHTML = "";
             snap.forEach(d => {
                 const c = d.data();
-                const div = document.createElement('div');
-                div.className = "comment-item";
-                div.innerHTML = `<strong>${c.userName || '匿名'}${getBadge(c.userId)}</strong> ${c.text}`;
-                list.appendChild(div);
+                list.innerHTML += `<div class="comment-item"><strong>${c.userName || '匿名'}${getBadge(c.userId)}</strong> ${c.text}</div>`;
             });
         });
     }
@@ -168,12 +161,11 @@
             if(confirm("管理権限で削除しますか？")) { await deleteDoc(doc(db, "videos", vid)); location.href="index.html"; }
         };
 
-        const editableElements = document.querySelectorAll('.stat-val');
-        editableElements.forEach(el => {
+        const editables = document.querySelectorAll('.stat-val');
+        editables.forEach(el => {
             el.classList.add('admin-editable');
             el.onclick = async () => {
-                const currentVal = el.innerText;
-                const newVal = prompt("数値を変更:", currentVal);
+                const newVal = prompt("数値を変更:", el.innerText);
                 if (newVal !== null && !isNaN(newVal)) {
                     const num = parseInt(newVal);
                     if (el.id === "subNum") {
@@ -190,10 +182,10 @@
 
     document.getElementById('commentInput').onkeypress = async (e) => {
         if (e.key === 'Enter' && currentUser && e.target.value.trim()) {
-            const mySnap = await getDoc(doc(db, "users", currentUser.uid));
+            const uSnap = await getDoc(doc(db, "users", currentUser.uid));
             await addDoc(collection(db, "videos", vid, "comments"), {
                 text: e.target.value,
-                userName: mySnap.data()?.name || "匿名",
+                userName: uSnap.data()?.name || "匿名",
                 userId: currentUser.uid,
                 createdAt: serverTimestamp()
             });
