@@ -17,11 +17,17 @@
         .author-info { display: flex; align-items: center; gap: 10px; }
         .author-icon { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #eee; }
         .author-name { font-weight: bold; text-decoration: none; color: #000; }
-        .btn-group { display: flex; gap: 10px; }
-        .btn { padding: 8px 16px; border-radius: 20px; border: none; cursor: pointer; font-weight: bold; }
+        .btn-group { display: flex; gap: 10px; align-items: center; }
+        .btn { padding: 8px 16px; border-radius: 20px; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        
+        /* ボタンの状態スタイル */
         .btn-like { background: #eee; }
+        .btn-like.active { background: #007bff; color: #fff; }
         .btn-sub { background: #cc0000; color: #fff; }
         .btn-sub.active { background: #eee; color: #606060; }
+        
+        .admin-del-btn { background: #ff4d4d; color: #fff; font-size: 12px; display: none; padding: 8px 12px; border-radius: 5px; border: none; cursor: pointer; }
+
         .comment-section { margin-top: 20px; }
         .comment-input { width: 100%; padding: 10px; border: none; border-bottom: 1px solid #ddd; margin-bottom: 10px; outline: none; }
         .comment-item { display: flex; gap: 10px; margin-bottom: 15px; font-size: 14px; }
@@ -48,6 +54,7 @@
             </div>
             <div class="btn-group">
                 <button class="btn btn-like" id="likeBtn">👍 <span id="likeCount">0</span></button>
+                <button id="adminDelBtn" class="admin-del-btn">動画を削除</button>
             </div>
         </div>
         <div class="comment-section">
@@ -64,7 +71,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, getDocs, collection, query, limit, updateDoc, increment, addDoc, serverTimestamp, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, getDocs, collection, query, limit, updateDoc, increment, addDoc, serverTimestamp, onSnapshot, deleteDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
@@ -83,9 +90,36 @@
     const vid = params.get("id");
     let currentUser = null;
 
-    onAuthStateChanged(auth, user => { currentUser = user; });
+    const ADMIN_UID = "ここにあなたのUIDを入れる"; 
+
+    onAuthStateChanged(auth, user => { 
+        currentUser = user; 
+        if(user && user.uid === ADMIN_UID) {
+            document.getElementById('adminDelBtn').style.display = 'block';
+        }
+        if(vid && user) checkUserStates();
+    });
 
     if (vid) { loadWatchPage(); }
+
+    async function checkUserStates() {
+        if(!currentUser) return;
+        // 高評価済みか確認
+        const likeSnap = await getDoc(doc(db, "videos", vid, "likedUsers", currentUser.uid));
+        if(likeSnap.exists()) document.getElementById('likeBtn').classList.add('active');
+
+        // 登録済みか確認
+        const vSnap = await getDoc(doc(db, "videos", vid));
+        if(vSnap.exists()){
+            const authorId = vSnap.data().userId;
+            const subSnap = await getDoc(doc(db, "users", authorId, "subscriberList", currentUser.uid));
+            if(subSnap.exists()) {
+                const sBtn = document.getElementById('subBtn');
+                sBtn.innerText = "登録済み";
+                sBtn.classList.add('active');
+            }
+        }
+    }
 
     async function loadWatchPage() {
         const vRef = doc(db, "videos", vid);
@@ -96,6 +130,13 @@
         document.getElementById('player').src = v.url;
         document.getElementById('vTitle').innerText = v.title;
         document.getElementById('likeCount').innerText = v.likes || 0;
+
+        document.getElementById('adminDelBtn').onclick = async () => {
+            if (confirm("管理者権限でこの動画を完全に削除しますか？")) {
+                await deleteDoc(vRef);
+                location.href = "index.html";
+            }
+        };
 
         const uRef = doc(db, "users", v.userId);
         const uSnap = await getDoc(uRef);
@@ -109,74 +150,84 @@
             document.getElementById('subCount').innerText = `登録者 ${ud.subscribers || 0}人`;
         }
 
-        // 高評価（重複防止）
+        // 高評価（解除対応・二重防止）
         document.getElementById('likeBtn').onclick = async () => {
             if (!currentUser) return alert("ログインが必要です");
             const btn = document.getElementById('likeBtn');
-            btn.disabled = true; // 連打防止
-            await updateDoc(vRef, { likes: increment(1) });
-            document.getElementById('likeCount').innerText = parseInt(document.getElementById('likeCount').innerText) + 1;
+            const likeRef = doc(db, "videos", vid, "likedUsers", currentUser.uid);
+            
+            if (btn.classList.contains('active')) {
+                // 解除
+                await deleteDoc(likeRef);
+                await updateDoc(vRef, { likes: increment(-1) });
+                btn.classList.remove('active');
+                document.getElementById('likeCount').innerText = parseInt(document.getElementById('likeCount').innerText) - 1;
+            } else {
+                // 高評価
+                await setDoc(likeRef, { uid: currentUser.uid });
+                await updateDoc(vRef, { likes: increment(1) });
+                btn.classList.add('active');
+                document.getElementById('likeCount').innerText = parseInt(document.getElementById('likeCount').innerText) + 1;
+            }
         };
 
-        // チャンネル登録
+        // チャンネル登録（解除対応・二重防止）
         document.getElementById('subBtn').onclick = async () => {
             if (!currentUser) return alert("ログインが必要です");
             const sBtn = document.getElementById('subBtn');
-            if (sBtn.classList.contains('active')) return;
-            await updateDoc(uRef, { subscribers: increment(1) });
-            sBtn.innerText = "登録済み";
-            sBtn.classList.add('active');
+            const authorId = v.userId;
+            const subRef = doc(db, "users", authorId, "subscriberList", currentUser.uid);
+
+            if (sBtn.classList.contains('active')) {
+                // 解除
+                await deleteDoc(subRef);
+                await updateDoc(uRef, { subscribers: increment(-1) });
+                sBtn.innerText = "チャンネル登録";
+                sBtn.classList.remove('active');
+            } else {
+                // 登録
+                await setDoc(subRef, { uid: currentUser.uid });
+                await updateDoc(uRef, { subscribers: increment(1) });
+                sBtn.innerText = "登録済み";
+                sBtn.classList.add('active');
+            }
+            // 登録者表示更新
+            const updatedSnap = await getDoc(uRef);
+            document.getElementById('subCount').innerText = `登録者 ${updatedSnap.data().subscribers || 0}人`;
         };
 
-        // コメント（undefined対策）
         const cCol = collection(db, "videos", vid, "comments");
         onSnapshot(cCol, snap => {
             document.getElementById('commentHeader').innerText = `コメント ${snap.size}件`;
             document.getElementById('commentList').innerHTML = "";
             snap.forEach(doc => {
                 const c = doc.data();
-                document.getElementById('commentList').innerHTML += `
-                    <div class="comment-item">
-                        <div><strong>${c.userName || '名無しさん'}</strong><br>${c.text}</div>
-                    </div>`;
+                document.getElementById('commentList').innerHTML += `<div class="comment-item"><div><strong>${c.userName || '名無しさん'}</strong><br>${c.text}</div></div>`;
             });
         });
 
         document.getElementById('commentInput').onkeypress = async (e) => {
             if (e.key === 'Enter' && currentUser && e.target.value.trim() !== "") {
                 const mySnap = await getDoc(doc(db, "users", currentUser.uid));
-                const myName = mySnap.exists() ? mySnap.data().name : "匿名ユーザー";
-                await addDoc(cCol, {
-                    text: e.target.value,
-                    userName: myName,
-                    userId: currentUser.uid,
-                    createdAt: serverTimestamp()
-                });
+                await addDoc(cCol, { text: e.target.value, userName: mySnap.data()?.name || "匿名", userId: currentUser.uid, createdAt: serverTimestamp() });
                 e.target.value = "";
             }
         };
 
-        // 関連動画（サムネイル補完）
         const vCols = await getDocs(query(collection(db, "videos"), limit(10)));
         vCols.forEach(doc => {
             if (doc.id !== vid) {
                 const rv = doc.data();
                 const rid = doc.id;
                 const rThumbId = `rthumb-${rid}`;
-                document.getElementById('relatedList').innerHTML += `
-                    <a href="watch.html?id=${rid}" class="side-card">
-                        <img id="${rThumbId}" class="side-thumb" src="">
-                        <div style="font-size:13px; font-weight:bold;">${rv.title}</div>
-                    </a>`;
-                
+                document.getElementById('relatedList').innerHTML += `<a href="watch.html?id=${rid}" class="side-card"><img id="${rThumbId}" class="side-thumb" src=""><div style="font-size:13px; font-weight:bold;">${rv.title}</div></a>`;
                 setTimeout(() => {
                     const img = document.getElementById(rThumbId);
-                    if (rv.thumbnail) { img.src = rv.thumbnail; }
-                    else { generateThumb(rv.url, img); }
+                    if (rv.thumbnail) img.src = rv.thumbnail;
+                    else generateThumb(rv.url, img);
                 }, 100);
             }
         });
-
         updateDoc(vRef, { views: increment(1) });
     }
 
