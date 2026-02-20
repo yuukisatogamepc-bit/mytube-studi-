@@ -13,27 +13,16 @@
         .side-col { flex: 1; }
         video { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 12px; }
         .v-title { font-size: 20px; font-weight: bold; margin: 15px 0; }
-        .v-stats { font-size: 14px; color: #606060; margin-bottom: 10px; }
         .action-bar { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 10px; }
         .author-info { display: flex; align-items: center; gap: 10px; }
         .author-icon { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #eee; }
-        .author-name { font-weight: bold; text-decoration: none; color: #000; }
-        .btn-group { display: flex; gap: 10px; align-items: center; }
-        .btn { padding: 8px 16px; border-radius: 20px; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; }
-        
-        .btn-like { background: #eee; color: #000; }
+        .btn { padding: 8px 16px; border-radius: 20px; border: none; cursor: pointer; font-weight: bold; }
+        .btn-like { background: #eee; }
         .btn-like.active { background: #007bff; color: #fff; }
         .btn-sub { background: #cc0000; color: #fff; }
         .btn-sub.active { background: #eee; color: #606060; }
-        
-        .admin-del-btn { background: #ff4d4d; color: #fff; font-size: 12px; display: none; padding: 8px 12px; border-radius: 5px; border: none; cursor: pointer; }
-        .admin-edit-mode { cursor: pointer; border-bottom: 2px dotted #007bff !important; }
-
-        .comment-section { margin-top: 20px; }
-        .comment-input { width: 100%; padding: 10px; border: none; border-bottom: 1px solid #ddd; margin-bottom: 10px; outline: none; }
-        .comment-item { display: flex; gap: 10px; margin-bottom: 15px; font-size: 14px; }
-        .side-card { display: flex; gap: 10px; text-decoration: none; color: #000; margin-bottom: 12px; }
-        .side-thumb { width: 120px; aspect-ratio: 16/9; background: #eee; border-radius: 8px; object-fit: cover; }
+        .admin-del { background: #ff4d4d; color: #fff; display: none; margin-left: 10px; }
+        .edit-num { cursor: pointer; text-decoration: underline dotted; }
     </style>
 </head>
 <body>
@@ -44,33 +33,26 @@
     <div class="main-col">
         <video id="player" controls autoplay></video>
         <div id="vTitle" class="v-title">読み込み中...</div>
-        <div class="v-stats">再生回数 <span id="admin-views">0</span>回</div>
-        
+        <div style="font-size:14px; color:#606060; margin-bottom:10px;">
+            再生回数 <span id="viewNum" class="stat-val">0</span>回
+        </div>
         <div class="action-bar">
             <div class="author-info">
-                <a id="authorLink" href=""><img id="authorIcon" class="author-icon" src=""></a>
+                <img id="authorIcon" class="author-icon">
                 <div>
-                    <a id="authorName" href="" class="author-name">読み込み中...</a>
-                    <div style="font-size:12px; color:#606060;">登録者 <span id="admin-subs">0</span>人</div>
+                    <div id="authorName" style="font-weight:bold;">読み込み中...</div>
+                    <div style="font-size:12px; color:#606060;">登録者 <span id="subNum" class="stat-val">0</span>人</div>
                 </div>
                 <button class="btn btn-sub" id="subBtn">チャンネル登録</button>
             </div>
             <div class="btn-group">
-                <button class="btn btn-like" id="likeBtn">👍 <span id="admin-likes">0</span></button>
-                <button id="adminDelBtn" class="admin-del-btn">動画を削除</button>
+                <button class="btn btn-like" id="likeBtn">👍 <span id="likeNum" class="stat-val">0</span></button>
+                <button id="adminDelBtn" class="btn admin-del">削除</button>
             </div>
         </div>
-
-        <div class="comment-section">
-            <h3 id="commentHeader">コメント 0件</h3>
-            <input type="text" id="commentInput" class="comment-input" placeholder="コメントを追加...">
-            <div id="commentList"></div>
-        </div>
+        <div id="commentList" style="margin-top:20px;"></div>
     </div>
-    <div class="side-col">
-        <h4>関連動画</h4>
-        <div id="relatedList"></div>
-    </div>
+    <div class="side-col" id="relatedList"></div>
 </div>
 
 <script type="module">
@@ -90,188 +72,104 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const auth = getAuth(app);
-    const params = new URLSearchParams(window.location.search);
-    const vid = params.get("id");
-    
-    let currentUser = null;
+    const vid = new URLSearchParams(window.location.search).get("id");
     const ADMIN_UID = "tP5CqCTRO3f2QQ8jdoj0ftY8kZU2";
+    let currentUser = null;
 
     onAuthStateChanged(auth, user => {
         currentUser = user;
-        if (user && vid) {
-            checkUserStates();
-            if (user.uid === ADMIN_UID) {
-                document.getElementById('adminDelBtn').style.display = 'block';
-                enableAdminPowers(); // 管理者のみ編集機能をON
-            }
+        if(user && vid) {
+            if(user.uid === ADMIN_UID) setupAdmin();
+            checkStates();
         }
     });
 
-    if (vid) { loadWatchPage(); }
-
-    async function loadWatchPage() {
-        const vRef = doc(db, "videos", vid);
-        const vSnap = await getDoc(vRef);
-        if (!vSnap.exists()) return;
+    async function load() {
+        if(!vid) return;
+        const vSnap = await getDoc(doc(db, "videos", vid));
         const v = vSnap.data();
-
         document.getElementById('player').src = v.url;
         document.getElementById('vTitle').innerText = v.title;
-        document.getElementById('admin-views').innerText = (v.views || 0).toLocaleString();
-        document.getElementById('admin-likes').innerText = (v.likes || 0).toLocaleString();
+        document.getElementById('viewNum').innerText = v.views || 0;
+        document.getElementById('likeNum').innerText = v.likes || 0;
 
-        const uRef = doc(db, "users", v.userId);
-        const uSnap = await getDoc(uRef);
-        if (uSnap.exists()) {
-            const ud = uSnap.data();
-            document.getElementById('authorLink').href = `channel.html?id=${v.userId}`;
-            document.getElementById('authorName').href = `channel.html?id=${v.userId}`;
-            document.getElementById('authorName').innerText = ud.name;
-            document.getElementById('authorIcon').src = ud.icon || "";
-            document.getElementById('admin-subs').innerText = (ud.subscribers || 0).toLocaleString();
+        const uSnap = await getDoc(doc(db, "users", v.userId));
+        if(uSnap.exists()) {
+            document.getElementById('authorName').innerText = uSnap.data().name;
+            document.getElementById('authorIcon').src = uSnap.data().icon || "";
+            document.getElementById('subNum').innerText = uSnap.data().subscribers || 0;
         }
 
-        // --- 管理者削除ボタン ---
-        document.getElementById('adminDelBtn').onclick = async () => {
-            if (confirm("動画を削除しますか？")) { await deleteDoc(vRef); location.href = "index.html"; }
-        };
-
-        // --- 高評価 (一般動作) ---
-        document.getElementById('likeBtn').onclick = async (e) => {
-            // 管理者の数字部分クリック時は無視するように、条件を整理
-            if (e.target.id === 'admin-likes' && currentUser?.uid === ADMIN_UID) return;
-
-            if (!currentUser) return alert("ログインが必要です");
+        // 高評価ボタン
+        document.getElementById('likeBtn').onclick = async () => {
+            if(!currentUser) return alert("ログインしてね");
             const btn = document.getElementById('likeBtn');
-            const likeRef = doc(db, "videos", vid, "likedUsers", currentUser.uid);
+            const ref = doc(db, "videos", vid, "likedUsers", currentUser.uid);
+            const isLiked = btn.classList.contains('active');
             
-            if (btn.classList.contains('active')) {
-                await deleteDoc(likeRef);
-                await updateDoc(vRef, { likes: increment(-1) });
-                btn.classList.remove('active');
-            } else {
-                await setDoc(likeRef, { uid: currentUser.uid });
-                await updateDoc(vRef, { likes: increment(1) });
-                btn.classList.add('active');
-            }
-            const updated = await getDoc(vRef);
-            document.getElementById('admin-likes').innerText = (updated.data().likes || 0).toLocaleString();
+            await (isLiked ? deleteDoc(ref) : setDoc(ref, {u:1}));
+            await updateDoc(doc(db, "videos", vid), { likes: increment(isLiked ? -1 : 1) });
+            btn.classList.toggle('active');
+            const fresh = await getDoc(doc(db, "videos", vid));
+            document.getElementById('likeNum').innerText = fresh.data().likes;
         };
 
-        // --- チャンネル登録 (一般動作) ---
+        // 登録ボタン
         document.getElementById('subBtn').onclick = async () => {
-            if (!currentUser) return alert("ログインが必要です");
-            const sBtn = document.getElementById('subBtn');
-            const subRef = doc(db, "users", v.userId, "subscriberList", currentUser.uid);
+            if(!currentUser) return alert("ログインしてね");
+            const btn = document.getElementById('subBtn');
+            const ref = doc(db, "users", v.userId, "subscriberList", currentUser.uid);
+            const isSub = btn.classList.contains('active');
 
-            if (sBtn.classList.contains('active')) {
-                await deleteDoc(subRef);
-                await updateDoc(uRef, { subscribers: increment(-1) });
-                sBtn.innerText = "チャンネル登録";
-                sBtn.classList.remove('active');
-            } else {
-                await setDoc(subRef, { uid: currentUser.uid });
-                await updateDoc(uRef, { subscribers: increment(1) });
-                sBtn.innerText = "登録済み";
-                sBtn.classList.add('active');
-            }
-            const updated = await getDoc(uRef);
-            document.getElementById('admin-subs').innerText = (updated.data().subscribers || 0).toLocaleString();
+            await (isSub ? deleteDoc(ref) : setDoc(ref, {u:1}));
+            await updateDoc(doc(db, "users", v.userId), { subscribers: increment(isSub ? -1 : 1) });
+            btn.classList.toggle('active');
+            btn.innerText = isSub ? "チャンネル登録" : "登録済み";
+            const fresh = await getDoc(doc(db, "users", v.userId));
+            document.getElementById('subNum').innerText = fresh.data().subscribers;
         };
 
-        // コメント読み込み
-        const cCol = collection(db, "videos", vid, "comments");
-        onSnapshot(cCol, snap => {
-            document.getElementById('commentHeader').innerText = `コメント ${snap.size}件`;
-            document.getElementById('commentList').innerHTML = "";
-            snap.forEach(doc => {
-                const c = doc.data();
-                document.getElementById('commentList').innerHTML += `<div class="comment-item"><div><strong>${c.userName || '匿名'}</strong><br>${c.text}</div></div>`;
-            });
-        });
-
-        // コメント投稿
-        document.getElementById('commentInput').onkeypress = async (e) => {
-            if (e.key === 'Enter' && currentUser && e.target.value.trim()) {
-                const mySnap = await getDoc(doc(db, "users", currentUser.uid));
-                await addDoc(cCol, { text: e.target.value, userName: mySnap.data()?.name || "匿名", userId: currentUser.uid, createdAt: serverTimestamp() });
-                e.target.value = "";
-            }
-        };
-
-        // 関連動画
-        const vCols = await getDocs(query(collection(db, "videos"), limit(10)));
-        vCols.forEach(doc => {
-            if (doc.id !== vid) {
-                const rv = doc.data();
-                const rid = doc.id;
-                const rThumbId = `rthumb-${rid}`;
-                document.getElementById('relatedList').innerHTML += `<a href="watch.html?id=${rid}" class="side-card"><img id="${rThumbId}" class="side-thumb" src=""><div style="font-size:13px; font-weight:bold;">${rv.title}</div></a>`;
-                setTimeout(() => {
-                    const img = document.getElementById(rThumbId);
-                    if (rv.thumbnail) img.src = rv.thumbnail;
-                    else generateThumb(rv.url, img);
-                }, 200);
-            }
-        });
-        updateDoc(vRef, { views: increment(1) });
+        updateDoc(doc(db, "videos", vid), { views: increment(1) });
     }
 
-    // 管理者専用の「数字クリック書き換え」
-    function enableAdminPowers() {
-        const adminTargets = [
-            { id: 'admin-views', key: 'views', type: 'video' },
-            { id: 'admin-likes', key: 'likes', type: 'video' },
-            { id: 'admin-subs', key: 'subscribers', type: 'user' }
-        ];
+    async function checkStates() {
+        const l = await getDoc(doc(db, "videos", vid, "likedUsers", currentUser.uid));
+        if(l.exists()) document.getElementById('likeBtn').classList.add('active');
+        
+        const v = await getDoc(doc(db, "videos", vid));
+        const s = await getDoc(doc(db, "users", v.data().userId, "subscriberList", currentUser.uid));
+        if(s.exists()) {
+            document.getElementById('subBtn').classList.add('active');
+            document.getElementById('subBtn').innerText = "登録済み";
+        }
+    }
 
-        adminTargets.forEach(target => {
-            const el = document.getElementById(target.id);
-            if (!el) return;
-            el.classList.add('admin-edit-mode');
+    function setupAdmin() {
+        document.getElementById('adminDelBtn').style.display = "inline-block";
+        document.querySelectorAll('.stat-val').forEach(el => {
+            el.classList.add('edit-num');
             el.onclick = async (e) => {
-                e.stopPropagation(); // ボタン自体のクリックイベントを発火させない
-                const newVal = prompt(`${target.key} を変更:`, el.innerText.replace(/,/g, ''));
-                if (newVal !== null && !isNaN(newVal)) {
-                    let ref;
-                    if (target.type === 'video') {
-                        ref = doc(db, "videos", vid);
-                    } else {
-                        const vSnap = await getDoc(doc(db, "videos", vid));
-                        ref = doc(db, "users", vSnap.data().userId);
+                e.stopPropagation();
+                const val = prompt("数値変更:", el.innerText);
+                if(val !== null) {
+                    let ref = doc(db, "videos", vid);
+                    let key = el.id === "viewNum" ? "views" : "likes";
+                    if(el.id === "subNum") {
+                        const v = await getDoc(doc(db, "videos", vid));
+                        ref = doc(db, "users", v.data().userId);
+                        key = "subscribers";
                     }
-                    await updateDoc(ref, { [target.key]: parseInt(newVal) });
-                    el.innerText = parseInt(newVal).toLocaleString();
+                    await updateDoc(ref, { [key]: parseInt(val) });
+                    el.innerText = val;
                 }
             };
         });
-    }
-
-    async function checkUserStates() {
-        const likeSnap = await getDoc(doc(db, "videos", vid, "likedUsers", currentUser.uid));
-        if (likeSnap.exists()) document.getElementById('likeBtn').classList.add('active');
-
-        const vSnap = await getDoc(doc(db, "videos", vid));
-        if (vSnap.exists()) {
-            const subSnap = await getDoc(doc(db, "users", vSnap.data().userId, "subscriberList", currentUser.uid));
-            if (subSnap.exists()) {
-                const sBtn = document.getElementById('subBtn');
-                sBtn.innerText = "登録済み"; sBtn.classList.add('active');
-            }
-        }
-    }
-
-    function generateThumb(url, imgElement) {
-        const v = document.createElement('video');
-        v.src = url; v.preload = "metadata"; v.muted = true; v.crossOrigin = "anonymous";
-        v.onloadedmetadata = () => { v.currentTime = 1.0; };
-        v.onseeked = () => {
-            const c = document.createElement('canvas'); c.width = 160; c.height = 90;
-            c.getContext('2d').drawImage(v, 0, 0, 160, 90);
-            imgElement.src = c.toDataURL('image/jpeg');
-            v.remove();
+        document.getElementById('adminDelBtn').onclick = async () => {
+            if(confirm("消す？")) { await deleteDoc(doc(db, "videos", vid)); location.href="index.html"; }
         };
     }
+
+    load();
 </script>
 </body>
 </html>
