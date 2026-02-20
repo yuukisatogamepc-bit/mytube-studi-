@@ -14,9 +14,9 @@
         
         .input-group { margin-bottom: 20px; text-align: left; }
         label { display: block; font-size: 14px; color: #606060; margin-bottom: 8px; font-weight: bold; }
-        input[type="text"], textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+        input[type="text"] { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
         
-        .file-box { border: 2px dashed #ddd; padding: 20px; border-radius: 8px; text-align: center; cursor: pointer; transition: 0.2s; }
+        .file-box { border: 2px dashed #ddd; padding: 20px; border-radius: 8px; text-align: center; cursor: pointer; transition: 0.2s; margin-bottom: 10px; }
         .file-box:hover { border-color: #ff0000; background: #fffafa; }
         .preview-img { width: 100%; max-height: 200px; object-fit: cover; margin-top: 10px; display: none; border-radius: 8px; }
         
@@ -24,6 +24,7 @@
         .btn-upload:disabled { background: #ccc; cursor: not-allowed; }
         
         .loading { font-size: 14px; color: #ff0000; margin-top: 10px; display: none; font-weight: bold; }
+        .video-preview { width: 100%; border-radius: 8px; margin-top: 10px; display: none; }
     </style>
 </head>
 <body>
@@ -41,18 +42,23 @@
     </div>
 
     <div class="input-group">
-        <label>動画URL (MP4等)</label>
-        <input type="text" id="vUrl" placeholder="https://example.com/video.mp4">
+        <label>動画ファイル (mp4, movなど)</label>
+        <div class="file-box" onclick="document.getElementById('videoInput').click()">
+            <span id="videoStatus">動画を選択してください</span>
+            <input type="file" id="videoInput" accept="video/*" style="display:none">
+            <video id="videoPreview" class="video-preview" controls></video>
+        </div>
+        <div id="videoUploadMsg" class="loading">動画をCloudinaryにアップロード中...</div>
     </div>
 
     <div class="input-group">
         <label>サムネイル画像</label>
         <div class="file-box" onclick="document.getElementById('thumbInput').click()">
-            <span id="fileStatus">クリックして画像を選択</span>
+            <span id="thumbStatus">サムネイルを選択してください</span>
             <input type="file" id="thumbInput" accept="image/*" style="display:none">
             <img id="thumbPreview" class="preview-img">
         </div>
-        <div id="uploadMsg" class="loading">Cloudinaryにアップロード中...</div>
+        <div id="thumbUploadMsg" class="loading">サムネイルをアップロード中...</div>
     </div>
 
     <button class="btn-upload" id="submitBtn">公開する</button>
@@ -63,7 +69,6 @@
     import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-    // Cloudinary 設定
     const CLOUD_NAME = "du5blunb0"; 
     const UPLOAD_PRESET = "mytube_preset"; 
 
@@ -81,6 +86,7 @@
     const auth = getAuth(app);
 
     let currentUser = null;
+    let videoCloudinaryUrl = "";
     let thumbnailCloudinaryUrl = "";
 
     onAuthStateChanged(auth, user => {
@@ -91,68 +97,100 @@
         currentUser = user;
     });
 
-    // サムネイルのCloudinaryアップロード
-    document.getElementById('thumbInput').onchange = async (e) => {
+    // 汎用アップロード関数 (Cloudinary用)
+    async function uploadToCloudinary(file, type) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("upload_preset", UPLOAD_PRESET);
+        formData.append("resource_type", type); // 'video' または 'image'
+
+        const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${type}/upload`, {
+            method: "POST",
+            body: formData
+        });
+        return await res.json();
+    }
+
+    // 動画ファイル選択時の処理
+    document.getElementById('videoInput').onchange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
-        const msg = document.getElementById('uploadMsg');
+        const msg = document.getElementById('videoUploadMsg');
         const btn = document.getElementById('submitBtn');
-        const status = document.getElementById('fileStatus');
+        const status = document.getElementById('videoStatus');
         
         msg.style.display = 'block';
         btn.disabled = true;
 
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("upload_preset", UPLOAD_PRESET);
-
         try {
-            const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-                method: "POST",
-                body: formData
-            });
-            const data = await res.json();
-            
+            const data = await uploadToCloudinary(file, "video");
             if (data.secure_url) {
-                thumbnailCloudinaryUrl = data.secure_url;
-                const img = document.getElementById('thumbPreview');
-                img.src = thumbnailCloudinaryUrl;
-                img.style.display = 'block';
-                status.innerText = "画像を切り替える";
+                videoCloudinaryUrl = data.secure_url;
+                const vPreview = document.getElementById('videoPreview');
+                vPreview.src = videoCloudinaryUrl;
+                vPreview.style.display = 'block';
+                status.innerText = "動画を変更する";
             }
         } catch (error) {
-            console.error(error);
-            alert("アップロードに失敗しました");
+            alert("動画のアップロードに失敗しました");
         } finally {
             msg.style.display = 'none';
             btn.disabled = false;
         }
     };
 
-    // 投稿処理
+    // サムネイルファイル選択時の処理
+    document.getElementById('thumbInput').onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const msg = document.getElementById('thumbUploadMsg');
+        const btn = document.getElementById('submitBtn');
+        const status = document.getElementById('thumbStatus');
+
+        msg.style.display = 'block';
+        btn.disabled = true;
+
+        try {
+            const data = await uploadToCloudinary(file, "image");
+            if (data.secure_url) {
+                thumbnailCloudinaryUrl = data.secure_url;
+                const img = document.getElementById('thumbPreview');
+                img.src = thumbnailCloudinaryUrl;
+                img.style.display = 'block';
+                status.innerText = "サムネイルを変更する";
+            }
+        } catch (error) {
+            alert("サムネイルのアップロードに失敗しました");
+        } finally {
+            msg.style.display = 'none';
+            btn.disabled = false;
+        }
+    };
+
+    // 公開処理
     document.getElementById('submitBtn').onclick = async () => {
         const title = document.getElementById('vTitle').value;
-        const url = document.getElementById('vUrl').value;
 
-        if (!title || !url) return alert("タイトルと動画URLを入力してください");
-        if (!thumbnailCloudinaryUrl) return alert("サムネイル画像をアップロードしてください");
+        if (!title) return alert("タイトルを入力してください");
+        if (!videoCloudinaryUrl) return alert("動画をアップロードしてください");
+        if (!thumbnailCloudinaryUrl) return alert("サムネイルをアップロードしてください");
 
         try {
             await addDoc(collection(db, "videos"), {
                 title: title,
-                url: url,
+                url: videoCloudinaryUrl,
                 thumbnail: thumbnailCloudinaryUrl,
                 userId: currentUser.uid,
                 views: 0,
                 likes: 0,
                 createdAt: serverTimestamp()
             });
-            alert("投稿しました！");
+            alert("公開完了しました！");
             location.href = "index.html";
         } catch (e) {
-            console.error(e);
-            alert("投稿エラーが発生しました");
+            alert("エラーが発生しました");
         }
     };
 </script>
