@@ -5,65 +5,72 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MyTube - 再生</title>
     <style>
-        body { font-family: "Roboto", Arial, sans-serif; margin: 0; background: #fff; }
-        .main-content { max-width: 1200px; margin: 0 auto; padding: 10px; }
+        body { font-family: "Roboto", Arial, sans-serif; margin: 0; background: #fff; display: flex; flex-direction: column; }
+        .main-layout { max-width: 1200px; margin: 0 auto; display: flex; gap: 20px; padding: 20px; flex-wrap: wrap; }
+        .video-side { flex: 2; min-width: 300px; }
+        .recommend-side { flex: 1; min-width: 300px; }
+        
         .video-container { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 12px; overflow: hidden; }
         video { width: 100%; height: 100%; }
         
-        .v-title { font-size: 20px; font-weight: bold; margin: 12px 0; line-height: 1.4; }
-        .v-stats { font-size: 14px; color: #606060; margin-bottom: 12px; }
-        
+        .v-title { font-size: 20px; font-weight: bold; margin: 12px 0; }
         .channel-info { display: flex; align-items: center; gap: 12px; margin: 15px 0; padding: 10px 0; border-top: 1px solid #eee; border-bottom: 1px solid #eee; }
         .c-icon { width: 40px; height: 40px; border-radius: 50%; cursor: pointer; object-fit: cover; background: #eee; }
-        .c-details { flex-grow: 1; cursor: pointer; }
-        .c-name { font-weight: bold; font-size: 16px; }
-        .c-subs { font-size: 12px; color: #606060; }
-        
-        .actions { display: flex; gap: 10px; margin: 15px 0; }
-        .btn { background: #f2f2f2; border: none; padding: 8px 16px; border-radius: 20px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 6px; }
-        .btn:hover { background: #e5e5e5; }
+        .btn { background: #f2f2f2; border: none; padding: 8px 16px; border-radius: 20px; font-weight: bold; cursor: pointer; }
         .btn.active { background: #000; color: #fff; }
-        
-        #commentSection { margin-top: 20px; }
-        .comment-item { display: flex; gap: 10px; margin-bottom: 15px; }
-        .user-icon-sm { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
+
+        /* コメント欄 */
+        .comment-box { margin-top: 20px; }
+        .comment-input { width: 100%; padding: 10px; border: none; border-bottom: 1px solid #ccc; margin-bottom: 10px; outline: none; }
+        .comment-item { display: flex; gap: 10px; margin-bottom: 15px; align-items: flex-start; }
+        .comment-text { font-size: 14px; }
+
+        /* 関連動画 */
+        .rec-card { display: flex; gap: 10px; text-decoration: none; color: #000; margin-bottom: 12px; }
+        .rec-thumb { width: 120px; aspect-ratio: 16/9; border-radius: 8px; object-fit: cover; background: #eee; }
+        .rec-title { font-size: 14px; font-weight: bold; line-height: 1.2; }
     </style>
 </head>
 <body>
 
-<div class="main-content">
-    <div class="video-container">
-        <video id="player" controls autoplay></video>
-    </div>
-
-    <div class="v-title" id="vTitle">動画タイトル</div>
-    
-    <div class="channel-info">
-        <img id="cIcon" class="c-icon" src="">
-        <div class="c-details" id="cJump">
-            <div class="c-name" id="cName">読み込み中...</div>
-            <div class="c-subs" id="cSubs">登録者 0人</div>
+<div class="main-layout">
+    <div class="video-side">
+        <div class="video-container">
+            <video id="player" controls autoplay></video>
         </div>
-        <button class="btn active" id="subBtn">チャンネル登録</button>
+        <div class="v-title" id="vTitle">読み込み中...</div>
+        
+        <div class="channel-info">
+            <img id="cIcon" class="c-icon" src="">
+            <div id="cJump" style="flex-grow:1; cursor:pointer;">
+                <div id="cName" style="font-weight:bold;">---</div>
+                <div id="cSubs" style="font-size:12px; color:#606060;">登録者 0人</div>
+            </div>
+            <button class="btn active">登録</button>
+        </div>
+
+        <div style="display:flex; gap:10px; margin-bottom:10px;">
+            <button class="btn" id="likeBtn">👍 <span id="vLikes">0</span></button>
+        </div>
+
+        <div class="comment-box">
+            <h4>コメント</h4>
+            <input type="text" id="commentInput" class="comment-input" placeholder="コメントを追加...">
+            <button class="btn" id="postComment" style="float:right;">コメント</button>
+            <div style="clear:both; height:20px;"></div>
+            <div id="commentList"></div>
+        </div>
     </div>
 
-    <div class="actions">
-        <button class="btn" id="likeBtn">👍 <span id="vLikes">0</span></button>
-        <button class="btn" id="shareBtn">共有</button>
-    </div>
-    
-    <div class="v-stats"><span id="vViews">0</span> 回視聴</div>
-
-    <hr>
-    <div id="commentSection">
-        <h4>コメント</h4>
-        <div id="commentList"></div>
+    <div class="recommend-side">
+        <h4>関連動画</h4>
+        <div id="recommendList"></div>
     </div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, updateDoc, increment, onSnapshot, setDoc, deleteDoc, collection, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, updateDoc, increment, onSnapshot, setDoc, deleteDoc, collection, query, orderBy, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
@@ -81,84 +88,73 @@
     const vId = new URLSearchParams(window.location.search).get('id');
 
     let user = null;
-    let authorId = "";
-
-    onAuthStateChanged(auth, u => {
-        user = u;
-        loadVideo();
-    });
+    onAuthStateChanged(auth, u => { user = u; loadVideo(); loadComments(); loadSideVideos(); });
 
     async function loadVideo() {
         if(!vId) return;
         const vRef = doc(db, "videos", vId);
-
-        // 視聴回数アップ
         updateDoc(vRef, { views: increment(1) });
-
         onSnapshot(vRef, async snap => {
-            if(!snap.exists()) return;
             const vd = snap.data();
-            authorId = vd.userId;
-
             document.getElementById('player').src = vd.url;
             document.getElementById('vTitle').innerText = vd.title;
-            document.getElementById('vViews').innerText = (vd.views || 0).toLocaleString();
-            document.getElementById('vLikes').innerText = (vd.likes || 0).toLocaleString();
-
-            // 投稿者情報（チャンネル情報）の取得
-            onSnapshot(doc(db, "users", authorId), uSnap => {
-                if(uSnap.exists()){
-                    const ud = uSnap.data();
-                    document.getElementById('cName').innerText = ud.name;
-                    document.getElementById('cIcon').src = ud.icon || "";
-                    document.getElementById('cSubs').innerText = `登録者 ${(ud.subCount || 0).toLocaleString()}人`;
-                    
-                    // チャンネルページへ飛ぶリンク
-                    const jump = () => location.href = `channel.html?id=${authorId}`;
-                    document.getElementById('cIcon').onclick = jump;
-                    document.getElementById('cJump').onclick = jump;
-                }
+            document.getElementById('vLikes').innerText = vd.likes || 0;
+            onSnapshot(doc(db, "users", vd.userId), uSnap => {
+                const ud = uSnap.data();
+                document.getElementById('cName').innerText = ud.name;
+                document.getElementById('cIcon').src = ud.icon || "";
+                const jump = () => location.href = `channel.html?id=${vd.userId}`;
+                document.getElementById('cIcon').onclick = jump;
+                document.getElementById('cJump').onclick = jump;
             });
-
-            // 高評価の状態確認
-            if(user) {
-                const lRef = doc(db, "videos", vId, "likes", user.uid);
-                const lSnap = await getDoc(lRef);
-                document.getElementById('likeBtn').classList.toggle('active', lSnap.exists());
-            }
         });
     }
 
-    // 高評価ボタンのクリック
-    document.getElementById('likeBtn').onclick = async () => {
-        if(!user) return alert("ログインしてください");
-        const lRef = doc(db, "videos", vId, "likes", user.uid);
-        const vRef = doc(db, "videos", vId);
-        const lSnap = await getDoc(lRef);
-
-        if(lSnap.exists()) {
-            await deleteDoc(lRef);
-            await updateDoc(vRef, { likes: increment(-1) });
-        } else {
-            await setDoc(lRef, { createdAt: new Date() });
-            await updateDoc(vRef, { likes: increment(1) });
-        }
+    // --- コメント機能 ---
+    document.getElementById('postComment').onclick = async () => {
+        const text = document.getElementById('commentInput').value;
+        if(!user || !text) return alert("ログインとコメント入力が必要です");
+        await addDoc(collection(db, "videos", vId, "comments"), {
+            text: text,
+            userId: user.uid,
+            createdAt: serverTimestamp()
+        });
+        document.getElementById('commentInput').value = "";
     };
 
-    // 隠し削除コマンド (abbmytube)
-    window.addEventListener('keydown', async (e) => {
-        if (e.key === 'a') {
-            let cmd = prompt("コマンドを入力してください");
-            if (cmd === "abbmytube") {
-                if(confirm("管理権限でこの動画を削除しますか？")){
-                    await deleteDoc(doc(db, "videos", vId));
-                    alert("削除しました");
-                    location.href = "index.html";
-                }
-            }
-        }
-    });
+    function loadComments() {
+        const q = query(collection(db, "videos", vId, "comments"), orderBy("createdAt", "desc"));
+        onSnapshot(q, snap => {
+            const list = document.getElementById('commentList');
+            list.innerHTML = "";
+            snap.forEach(async cDoc => {
+                const cd = cDoc.data();
+                const item = document.createElement('div');
+                item.className = "comment-item";
+                const uSnap = await getDoc(doc(db, "users", cd.userId));
+                const uIcon = uSnap.exists() ? uSnap.data().icon : "";
+                item.innerHTML = `<img src="${uIcon}" class="user-icon-sm"><div><div style="font-size:12px; font-weight:bold;">${uSnap.data().name}</div><div class="comment-text">${cd.text}</div></div>`;
+                list.appendChild(item);
+            });
+        });
+    }
 
+    // --- 関連動画機能 ---
+    function loadSideVideos() {
+        onSnapshot(collection(db, "videos"), snap => {
+            const list = document.getElementById('recommendList');
+            list.innerHTML = "";
+            snap.forEach(vDoc => {
+                if(vDoc.id === vId) return; // 今見てる動画は出さない
+                const vd = vDoc.data();
+                list.innerHTML += `
+                    <a href="watch.html?id=${vDoc.id}" class="rec-card">
+                        <img src="${vd.thumbnail}" class="rec-thumb">
+                        <div class="rec-title">${vd.title}</div>
+                    </a>`;
+            });
+        });
+    }
 </script>
 </body>
 </html>
