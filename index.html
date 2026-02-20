@@ -8,30 +8,28 @@
         body { font-family: sans-serif; margin: 0; background: #fff; }
         header { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; border-bottom: 1px solid #eee; position: sticky; top: 0; background: #fff; z-index: 100; }
         
-        /* ロゴデザイン：iro(青) Tube(黄色背景) */
         .logo { font-size: 20px; font-weight: bold; text-decoration: none; display: flex; align-items: center; }
         .iro { color: #007bff; }
         .tube { color: #000; background: #ffcc00; padding: 2px 5px; border-radius: 4px; margin-left: 2px; }
         
         .header-right { display: flex; align-items: center; gap: 15px; }
         .u-icon-btn { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; cursor: pointer; background: #eee; border: 1px solid #ddd; }
-        .login-btn { background: #007bff; color: #fff; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; text-decoration: none; font-size: 13px; }
+        .login-btn { background: #007bff; color: #fff; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; text-decoration: none; }
 
-        /* プロフィール編集ウィンドウ（モーダル） */
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
-        .modal-window { background: #fff; padding: 25px; border-radius: 15px; width: 90%; max-width: 350px; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
-        .modal-window h2 { margin: 0 0 20px; font-size: 18px; }
+        /* モーダル */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; justify-content: center; align-items: center; }
+        .modal-window { background: #fff; padding: 25px; border-radius: 15px; width: 320px; text-align: center; box-shadow: 0 5px 20px rgba(0,0,0,0.5); position: relative; }
         
+        /* ログアウトボタン（端っこに小さく） */
+        .logout-link { position: absolute; top: 15px; right: 15px; font-size: 11px; color: #999; cursor: pointer; text-decoration: underline; background: none; border: none; padding: 0; }
+        .logout-link:hover { color: #ff4d4d; }
+
+        .modal-window h2 { margin: 0 0 15px; font-size: 18px; }
         .input-box { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
-        
-        /* 画像選択ボタン（青） */
         .file-label { display: block; background: #007bff; color: #fff; padding: 10px; border-radius: 5px; cursor: pointer; margin-bottom: 10px; font-size: 14px; }
-        #editIcon { display: none; } /* inputは隠す */
-
-        .warn-text { color: red; font-size: 12px; margin-bottom: 20px; font-weight: bold; }
-
-        /* 保存ボタン（グレー） */
-        .btn-save { background: #666; color: #fff; border: none; padding: 12px 20px; border-radius: 5px; cursor: pointer; width: 100%; font-weight: bold; }
+        #editIcon { display: none; }
+        .warn-text { color: red; font-size: 11px; margin-bottom: 15px; font-weight: bold; line-height: 1.4; }
+        .btn-save { background: #666; color: #fff; border: none; padding: 12px; border-radius: 5px; cursor: pointer; width: 100%; font-weight: bold; }
         .btn-close { background: none; border: none; color: #999; cursor: pointer; margin-top: 15px; font-size: 12px; text-decoration: underline; }
 
         /* 動画グリッド */
@@ -50,22 +48,19 @@
     </a>
     <div class="header-right">
         <a href="upload.html" style="text-decoration:none; color:#000; font-size:14px;">投稿</a>
-        <div id="userArea">
-            <a href="login.html" class="login-btn">ログイン</a>
-        </div>
+        <div id="userArea"></div>
     </div>
 </header>
 
 <div id="profileModal" class="modal-overlay">
     <div class="modal-window">
+        <button class="logout-link" id="doLogout">ログアウト</button>
+        
         <h2>プロフィール変更</h2>
         <input type="text" id="editName" class="input-box" placeholder="新しい名前">
-        
         <label for="editIcon" class="file-label">画像を選択</label>
         <input type="file" id="editIcon" accept="image/*">
-        
         <p class="warn-text">※強行突破モード：画像はなるべく小さいものを選んでください</p>
-        
         <button class="btn-save" id="saveProfile">変更を保存</button>
         <button class="btn-close" id="closeModal">キャンセル</button>
     </div>
@@ -76,7 +71,7 @@
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, query, onSnapshot, orderBy, doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAZivYKOGc1tSUAIDq_c10C1wJ-Pdh0U2o",
@@ -93,35 +88,41 @@
 
     let currentUser = null;
 
-    // ログイン状態監視
     onAuthStateChanged(auth, async user => {
         currentUser = user;
         const userArea = document.getElementById('userArea');
         if (user) {
             const uSnap = await getDoc(doc(db, "users", user.uid));
             const ud = uSnap.data();
-            // アイコンを表示。クリックでモーダル（Window）を起動。profile.htmlには飛ばしません。
-            userArea.innerHTML = `<img src="${ud?.icon || ''}" class="u-icon-btn" id="profileIconBtn">`;
-            
-            document.getElementById('profileIconBtn').onclick = () => {
+            userArea.innerHTML = `<img src="${ud?.icon || ''}" class="u-icon-btn" id="openModalBtn">`;
+            document.getElementById('openModalBtn').onclick = () => {
                 document.getElementById('editName').value = ud?.name || "";
                 document.getElementById('profileModal').style.display = 'flex';
             };
+        } else {
+            userArea.innerHTML = `<button onclick="location.href='login.html'" class="login-btn">ログイン</button>`;
         }
     });
 
-    // モーダルを閉じる
+    // ログアウト処理
+    document.getElementById('doLogout').onclick = () => {
+        if (confirm("本当にログアウトしますか？")) {
+            signOut(auth).then(() => {
+                location.reload();
+            });
+        }
+        // 「いいえ」の場合はそのまま（何もしないでウィンドウを維持）
+    };
+
     document.getElementById('closeModal').onclick = () => {
         document.getElementById('profileModal').style.display = 'none';
     };
 
-    // 保存処理（その場でFirestoreを更新してリロード）
     document.getElementById('saveProfile').onclick = async () => {
         if (!currentUser) return;
         const btn = document.getElementById('saveProfile');
         btn.innerText = "保存中...";
         btn.disabled = true;
-
         const newName = document.getElementById('editName').value;
         const fileInput = document.getElementById('editIcon');
         const updates = { name: newName };
@@ -131,7 +132,7 @@
             reader.onload = async (e) => {
                 updates.icon = e.target.result;
                 await updateDoc(doc(db, "users", currentUser.uid), updates);
-                location.reload(); // 保存後、今のページを更新
+                location.reload(); 
             };
             reader.readAsDataURL(fileInput.files[0]);
         } else {
@@ -140,7 +141,6 @@
         }
     };
 
-    // 動画表示と「真っ黒にならない」安定版サムネイルロジック
     onSnapshot(query(collection(db, "videos"), orderBy("createdAt", "desc")), snap => {
         const grid = document.getElementById('grid');
         grid.innerHTML = "";
