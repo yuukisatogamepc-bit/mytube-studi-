@@ -86,7 +86,7 @@
     });
 
     async function uploadLargeFile(file, type) {
-        const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`;
+        const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${type}/upload`;
         const chunkSize = 6000000; 
         const uniqueUploadId = Date.now() + Math.random().toString(36).substring(7);
         const totalSize = file.size;
@@ -191,5 +191,6 @@
 </script>
 </body>
 </html>
+
 
 
