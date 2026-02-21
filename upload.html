@@ -87,7 +87,7 @@
 
     async function uploadLargeFile(file, type) {
         const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${type}/upload`;
-        const chunkSize = 12000000; 
+        const chunkSize = 6000000; 
         const uniqueUploadId = Date.now() + Math.random().toString(36).substring(7);
         const totalSize = file.size;
         let start = 0;
@@ -99,6 +99,7 @@
             const formData = new FormData();
             formData.append("file", chunk);
             formData.append("upload_preset", UPLOAD_PRESET);
+            formData.append("resource_type", "video");
             
             const contentRange = `bytes ${start}-${end - 1}/${totalSize}`;
             
@@ -190,4 +191,5 @@
 </script>
 </body>
 </html>
+
 
