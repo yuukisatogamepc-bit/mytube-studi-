@@ -192,8 +192,60 @@
             e.target.value = "";
         }
     };
+// --- 追加：チャンネル登録と高評価のクリック処理 ---
+
+    // 高評価ボタンの処理
+    document.getElementById('likeBtn').onclick = async () => {
+        if (!currentUser) {
+            alert("高評価するにはログインが必要です。");
+            return;
+        }
+        try {
+            const vRef = doc(db, "videos", vid);
+            // Firestoreの数値を1増やす
+            await updateDoc(vRef, { likes: increment(1) });
+            // 表示を更新
+            const currentLikes = parseInt(document.getElementById('likeNum').innerText);
+            document.getElementById('likeNum').innerText = currentLikes + 1;
+            alert("高評価しました！");
+        } catch (e) {
+            console.error(e);
+            alert("エラーが発生しました。");
+        }
+    };
+
+    // チャンネル登録ボタンの処理
+    document.getElementById('subBtn').onclick = async () => {
+        if (!currentUser) {
+            alert("登録するにはログインが必要です。");
+            return;
+        }
+        if (!videoAuthorId) return;
+
+        try {
+            const uRef = doc(db, "users", videoAuthorId);
+            // 投稿者の登録者数を1増やす
+            await updateDoc(uRef, { subscribers: increment(1) });
+            // 表示を更新
+            const currentSubs = parseInt(document.getElementById('subNum').innerText);
+            document.getElementById('subNum').innerText = currentSubs + 1;
+            
+            // ボタンの見た目を変える
+            const subBtn = document.getElementById('subBtn');
+            subBtn.innerText = "登録済み";
+            subBtn.style.background = "#717171";
+            
+            alert("チャンネル登録しました！");
+        } catch (e) {
+            console.error(e);
+            alert("エラーが発生しました。");
+        }
+    };
+    
+    // --- 追加ここまで ---
 
     load();
 </script>
 </body>
 </html>
+
