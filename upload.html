@@ -99,7 +99,6 @@
             const formData = new FormData();
             formData.append("file", chunk);
             formData.append("upload_preset", UPLOAD_PRESET);
-            formData.append("resource_type", "video"); 
             
             const contentRange = `bytes ${start}-${end - 1}/${totalSize}`;
             
@@ -191,6 +190,7 @@
 </script>
 </body>
 </html>
+
 
 
 
