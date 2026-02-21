@@ -37,7 +37,7 @@
     <div class="input-group">
         <label>動画ファイル (mp4, movなど)</label>
         <div class="file-box" onclick="document.getElementById('videoInput').click()">
-            <span id="vStatus">クリックして動画を選択</span>
+            <span id="vStatus">クリックして動画を選択(100MB未満)</span>
             <input type="file" id="videoInput" accept="video/*" style="display:none">
         </div>
         <div id="vLoading" class="loading"></div>
@@ -165,7 +165,7 @@
     
     if (!title) return alert("タイトルを入力してください");
     if (!vUrl || vUrl === "undefined") {
-        return alert("動画のアップロードがまだ完了していないか、失敗しています。数秒待ってからやり直してください。");
+        return alert("動画のアップロードに失敗したか、ファイルが100MBを超えています。");
     }
 
     try {
@@ -191,5 +191,6 @@
 </script>
 </body>
 </html>
+
 
 
