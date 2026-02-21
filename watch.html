@@ -153,8 +153,8 @@
         }
 
         document.getElementById('vTitle').innerText = v.title;
-        document.getElementById('viewNum').innerText = v.views || 0;
-        document.getElementById('likeNum').innerText = v.likes || 0;
+        document.getElementById('viewNum').innerText = (v.views || 0).toLocaleString();
+        document.getElementById('likeNum').innerText = (v.likes || 0).toLocaleString();
 
         await updateDoc(vRef, { views: increment(1) });
 
@@ -163,7 +163,7 @@
             const u = uSnap.data();
             document.getElementById('authorName').innerHTML = (u.name || "不明") + getBadge(v.userId);
             document.getElementById('authorIcon').src = u.icon || "";
-            document.getElementById('subNum').innerText = u.subscribers || 0;
+            document.getElementById('subNum').innerText = (u.subscribers || 0).toLocaleString();
         }
 
         // 関連動画の取得
@@ -187,21 +187,60 @@
         const sidebar = document.getElementById('relatedVideos');
         sidebar.innerHTML = "";
 
-        snap.forEach(d => {
-            if(d.id === vid) return; // 今見ている動画は除外
+        for (const d of snap.docs) {
+            if(d.id === vid) continue; // 今見ている動画は除外
             const data = d.data();
-            const html = `
-                <a href="watch.html?id=${d.id}" class="related-card">
-                    <img src="${data.thumbnail || 'https://via.placeholder.com/160x90?text=No+Image'}" class="related-thumb">
-                    <div class="related-info">
-                        <div class="related-title">${data.title}</div>
-                        <div class="related-meta">再生回数 ${data.views || 0}回</div>
-                    </div>
-                </a>
+            const relatedId = d.id;
+
+            const card = document.createElement('a');
+            card.href = `watch.html?id=${relatedId}`;
+            card.className = 'related-card';
+            
+            const thumbId = `related-thumb-${relatedId}`; // ユニークなIDを付与
+
+            card.innerHTML = `
+                <img id="${thumbId}" class="related-thumb" src="">
+                <div class="related-info">
+                    <div class="related-title">${data.title}</div>
+                    <div class="related-meta">再生回数 ${(data.views || 0).toLocaleString()}回</div>
+                </div>
             `;
-            sidebar.innerHTML += html;
-        });
+            sidebar.appendChild(card);
+
+            const imgEl = document.getElementById(thumbId);
+            if (data.thumbnail) {
+                imgEl.src = data.thumbnail;
+            } else if (data.url) {
+                // thumbnailがなければ動画URLから生成
+                generateThumb(data.url, imgEl);
+            } else {
+                // どちらもなければプレースホルダー
+                imgEl.src = 'https://via.placeholder.com/160x90?text=No+Image';
+            }
+        }
     }
+
+    // --- ここから追加 ---
+    function generateThumb(url, imgElement) {
+        const v = document.createElement('video');
+        v.src = url; v.preload = "metadata"; v.muted = true; v.crossOrigin = "anonymous";
+        v.onloadedmetadata = () => { v.currentTime = 1.0; };
+        v.onseeked = () => {
+            const c = document.createElement('canvas'); 
+            const aspectRatio = v.videoWidth / v.videoHeight;
+            c.width = 160; 
+            c.height = 160 / aspectRatio;
+            c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+            imgElement.src = c.toDataURL('image/jpeg');
+            v.remove();
+        };
+        // エラーハンドリング: 万が一動画の読み込みに失敗した場合
+        v.onerror = () => {
+            imgElement.src = 'https://via.placeholder.com/160x90?text=Error';
+            v.remove();
+        };
+    }
+    // --- ここまで追加 ---
 
     function setupAdmin() {
         document.getElementById('adminDelBtn').style.display = "block";
@@ -213,7 +252,8 @@
         editables.forEach(el => {
             el.classList.add('admin-editable');
             el.onclick = async () => {
-                const newVal = prompt("数値を変更:", el.innerText);
+                const currentVal = el.innerText.replace(/,/g, ''); // カンマを削除
+                const newVal = prompt("数値を変更:", currentVal);
                 if (newVal !== null && !isNaN(newVal)) {
                     const num = parseInt(newVal);
                     if (el.id === "subNum") {
@@ -222,7 +262,7 @@
                         const key = el.id === "viewNum" ? "views" : "likes";
                         await updateDoc(doc(db, "videos", vid), { [key]: num });
                     }
-                    el.innerText = num;
+                    el.innerText = num.toLocaleString();
                 }
             };
         });
