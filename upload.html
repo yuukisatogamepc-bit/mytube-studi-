@@ -158,29 +158,36 @@
     };
 
     document.getElementById('submitBtn').onclick = async () => {
-        const title = document.getElementById('vTitle').value.trim();
-        const vUrl = document.getElementById('finalVideoUrl').value;
-        const tUrl = document.getElementById('finalThumbUrl').value;
-        
-        // デバッグ用: もしエラーが出るならここを確認
-        if (!title) return alert("タイトルを入力してください");
-        if (!vUrl) return alert("動画のアップロードが完了するまでお待ちください");
+    const title = document.getElementById('vTitle').value.trim();
+    const vUrl = document.getElementById('finalVideoUrl').value; // ここが空だとundefinedになる
+    const tUrl = document.getElementById('finalThumbUrl').value;
+    
+    if (!title) return alert("タイトルを入力してください");
+    if (!vUrl || vUrl === "undefined") {
+        return alert("動画のアップロードがまだ完了していないか、失敗しています。数秒待ってからやり直してください。");
+    }
 
-        try {
-            await addDoc(collection(db, "videos"), {
-                title: title,
-                url: vUrl,
-                thumbnail: tUrl || "", 
-                userId: uid,
-                views: 0,
-                createdAt: serverTimestamp()
-            });
-            alert("公開完了しました！");
-            location.href = "index.html";
-        } catch (e) {
-            alert("エラー: " + e.message);
-        }
-    };
+    try {
+        // ボタンを無効化して連打防止
+        document.getElementById('submitBtn').disabled = true;
+        document.getElementById('submitBtn').innerText = "保存中...";
+
+        await addDoc(collection(db, "videos"), {
+            title: title,
+            url: vUrl,
+            thumbnail: tUrl || "", 
+            userId: uid,
+            views: 0,
+            createdAt: serverTimestamp()
+        });
+        alert("公開完了しました！");
+        location.href = "index.html";
+    } catch (e) {
+        alert("エラー: " + e.message);
+        document.getElementById('submitBtn').disabled = false;
+    }
+};
 </script>
 </body>
 </html>
+
