@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>再生 - Mvideo</title>
     <style>
+        /* ... CSSは変更なし ... */
         body { font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif; margin: 0; background: #fff; color: #000; }
         header { width: 100%; padding: 12px 20px; border-bottom: 1px solid #f2f2f2; box-sizing: border-box; position: sticky; top: 0; background: #fff; z-index: 100; }
         .logo { font-size: 20px; font-weight: bold; text-decoration: none; color: #ff0000; }
@@ -139,108 +140,153 @@
     }
 
     async function load() {
-        if(!vid) return;
-        const vRef = doc(db, "videos", vid);
-        const vSnap = await getDoc(vRef);
-        if(!vSnap.exists()) return;
-        const v = vSnap.data();
-        videoAuthorId = v.userId;
-
-        const player = document.getElementById('player');
-        if(v.url) {
-            player.src = v.url;
-            player.load();
+        if(!vid) {
+            document.getElementById('vTitle').innerText = "動画IDが指定されていません。";
+            return;
         }
 
-        document.getElementById('vTitle').innerText = v.title;
-        document.getElementById('viewNum').innerText = (v.views || 0).toLocaleString();
-        document.getElementById('likeNum').innerText = (v.likes || 0).toLocaleString();
+        try {
+            const vRef = doc(db, "videos", vid);
+            const vSnap = await getDoc(vRef);
 
-        await updateDoc(vRef, { views: increment(1) });
-
-        const uSnap = await getDoc(doc(db, "users", v.userId));
-        if(uSnap.exists()) {
-            const u = uSnap.data();
-            document.getElementById('authorName').innerHTML = (u.name || "不明") + getBadge(v.userId);
-            document.getElementById('authorIcon').src = u.icon || "";
-            document.getElementById('subNum').innerText = (u.subscribers || 0).toLocaleString();
-        }
-
-        // 関連動画の取得
-        loadRelatedVideos();
-
-        // コメント監視
-        onSnapshot(query(collection(db, "videos", vid, "comments"), orderBy("createdAt", "desc")), snap => {
-            document.getElementById('commentHeader').innerText = `コメント ${snap.size}件`;
-            const list = document.getElementById('commentList');
-            list.innerHTML = "";
-            snap.forEach(d => {
-                const c = d.data();
-                list.innerHTML += `<div class="comment-item"><div><strong>${c.userName || '匿名'}${getBadge(c.userId)}</strong><br>${c.text}</div></div>`;
-            });
-        });
-    }
-
-    async function loadRelatedVideos() {
-        const q = query(collection(db, "videos"), limit(12));
-        const snap = await getDocs(q);
-        const sidebar = document.getElementById('relatedVideos');
-        sidebar.innerHTML = "";
-
-        for (const d of snap.docs) {
-            if(d.id === vid) continue; // 今見ている動画は除外
-            const data = d.data();
-            const relatedId = d.id;
-
-            const card = document.createElement('a');
-            card.href = `watch.html?id=${relatedId}`;
-            card.className = 'related-card';
-            
-            const thumbId = `related-thumb-${relatedId}`; // ユニークなIDを付与
-
-            card.innerHTML = `
-                <img id="${thumbId}" class="related-thumb" src="">
-                <div class="related-info">
-                    <div class="related-title">${data.title}</div>
-                    <div class="related-meta">再生回数 ${(data.views || 0).toLocaleString()}回</div>
-                </div>
-            `;
-            sidebar.appendChild(card);
-
-            const imgEl = document.getElementById(thumbId);
-            if (data.thumbnail) {
-                imgEl.src = data.thumbnail;
-            } else if (data.url) {
-                // thumbnailがなければ動画URLから生成
-                generateThumb(data.url, imgEl);
-            } else {
-                // どちらもなければプレースホルダー
-                imgEl.src = 'https://via.placeholder.com/160x90?text=No+Image';
+            if(!vSnap.exists()) {
+                document.getElementById('vTitle').innerText = "動画が見つかりませんでした。";
+                return;
             }
+
+            const v = vSnap.data();
+            videoAuthorId = v.userId;
+
+            const player = document.getElementById('player');
+            if(v.url) {
+                player.src = v.url;
+                player.load();
+            }
+
+            document.getElementById('vTitle').innerText = v.title;
+            document.getElementById('viewNum').innerText = (v.views || 0).toLocaleString();
+            document.getElementById('likeNum').innerText = (v.likes || 0).toLocaleString();
+
+            // 再生回数の更新（エラーが発生してもUI表示を妨げないようにcatchを追加）
+            updateDoc(vRef, { views: increment(1) }).catch(console.error);
+
+            // --- ▼修正点▼ チャンネル情報の取得に存在チェックとフォールバックを追加 ---
+            if (v.userId) {
+                const uSnap = await getDoc(doc(db, "users", v.userId));
+                if (uSnap.exists()) {
+                    const u = uSnap.data();
+                    document.getElementById('authorName').innerHTML = (u.name || "不明な投稿者") + getBadge(v.userId);
+                    document.getElementById('authorIcon').src = u.icon || "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+                    document.getElementById('subNum').innerText = (u.subscribers || 0).toLocaleString();
+                } else {
+                    document.getElementById('authorName').innerText = "不明な投稿者";
+                }
+            } else {
+                document.getElementById('authorName').innerText = "不明な投稿者";
+            }
+            // --- ▲修正点▲ ---
+
+            // 関連動画の取得
+            loadRelatedVideos();
+
+            // コメント監視
+            onSnapshot(query(collection(db, "videos", vid, "comments"), orderBy("createdAt", "desc")), snap => {
+                document.getElementById('commentHeader').innerText = `コメント ${snap.size}件`;
+                const list = document.getElementById('commentList');
+                list.innerHTML = "";
+                snap.forEach(d => {
+                    const c = d.data();
+                    list.innerHTML += `<div class="comment-item"><div><strong>${c.userName || '匿名'}${getBadge(c.userId)}</strong><br>${c.text}</div></div>`;
+                });
+            });
+        // --- ▼修正点▼ エラーハンドリングを追加 ---
+        } catch (error) {
+            console.error("動画の読み込み中にエラーが発生しました:", error);
+            document.getElementById('vTitle').innerText = "エラーが発生しました。ページを再読み込みしてください。";
         }
+        // --- ▲修正点▲ ---
     }
 
-    // --- ここから追加 ---
+    // --- ▼修正点▼ エラーハンドリングを追加 ---
+    async function loadRelatedVideos() {
+        try {
+            const q = query(collection(db, "videos"), limit(12));
+            const snap = await getDocs(q);
+            const sidebar = document.getElementById('relatedVideos');
+            sidebar.innerHTML = "";
+
+            if (snap.empty) {
+                sidebar.innerHTML = "関連動画はありません。";
+                return;
+            }
+
+            for (const d of snap.docs) {
+                if(d.id === vid) continue; // 今見ている動画は除外
+                const data = d.data();
+                const relatedId = d.id;
+
+                const card = document.createElement('a');
+                card.href = `watch.html?id=${relatedId}`;
+                card.className = 'related-card';
+                
+                const thumbId = `related-thumb-${relatedId}`; // ユニークなIDを付与
+
+                card.innerHTML = `
+                    <img id="${thumbId}" class="related-thumb" src="">
+                    <div class="related-info">
+                        <div class="related-title">${data.title}</div>
+                        <div class="related-meta">再生回数 ${(data.views || 0).toLocaleString()}回</div>
+                    </div>
+                `;
+                sidebar.appendChild(card);
+
+                const imgEl = document.getElementById(thumbId);
+                if (data.thumbnail) {
+                    imgEl.src = data.thumbnail;
+                } else if (data.url) {
+                    // thumbnailがなければ動画URLから生成
+                    generateThumb(data.url, imgEl);
+                } else {
+                    // どちらもなければプレースホルダー
+                    imgEl.src = 'https://via.placeholder.com/160x90?text=No+Image';
+                }
+            }
+        } catch (error) {
+            console.error("関連動画の読み込み中にエラーが発生しました:", error);
+            document.getElementById('relatedVideos').innerText = "関連動画の読み込みに失敗しました。";
+        }
+    }
+    // --- ▲修正点▲ ---
+
+    // --- ▼追加▼ 未定義だったgenerateThumb関数を実装 ---
     function generateThumb(url, imgElement) {
-        const v = document.createElement('video');
-        v.src = url; v.preload = "metadata"; v.muted = true; v.crossOrigin = "anonymous";
-        v.onloadedmetadata = () => { v.currentTime = 1.0; };
-        v.onseeked = () => {
-            const c = document.createElement('canvas'); 
-            const aspectRatio = v.videoWidth / v.videoHeight;
-            c.width = 160; 
-            c.height = 160 / aspectRatio;
-            c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
-            imgElement.src = c.toDataURL('image/jpeg');
-            v.remove();
+        const video = document.createElement('video');
+        video.src = url;
+        video.preload = "metadata";
+        video.muted = true;
+        video.crossOrigin = "anonymous"; // CORS設定
+
+        // 1秒地点のフレームをサムネイルにする
+        video.onloadedmetadata = () => { video.currentTime = 1.0; };
+        
+        video.onseeked = () => {
+            const canvas = document.createElement('canvas');
+            const aspectRatio = video.videoWidth / video.videoHeight;
+            canvas.width = 160;
+            canvas.height = 160 / aspectRatio;
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+            imgElement.src = canvas.toDataURL('image/jpeg');
+            video.remove(); // 不要になったvideo要素を削除
         };
-        // エラーハンドリング: 万が一動画の読み込みに失敗した場合
-        v.onerror = () => {
+        
+        // エラーハンドリング
+        video.onerror = () => {
+            console.error(`サムネイル生成失敗: ${url}`);
             imgElement.src = 'https://via.placeholder.com/160x90?text=Error';
-            v.remove();
+            video.remove();
         };
     }
-    // --- ここまで追加 ---
+    // --- ▲追加▲ ---
 
     function setupAdmin() {
         document.getElementById('adminDelBtn').style.display = "block";
@@ -270,14 +316,19 @@
 
     document.getElementById('commentInput').onkeypress = async (e) => {
         if (e.key === 'Enter' && currentUser && e.target.value.trim()) {
-            const uSnap = await getDoc(doc(db, "users", currentUser.uid));
-            await addDoc(collection(db, "videos", vid, "comments"), {
-                text: e.target.value,
-                userName: uSnap.data()?.name || "匿名",
-                userId: currentUser.uid,
-                createdAt: serverTimestamp()
-            });
-            e.target.value = "";
+            try {
+                const uSnap = await getDoc(doc(db, "users", currentUser.uid));
+                await addDoc(collection(db, "videos", vid, "comments"), {
+                    text: e.target.value,
+                    userName: uSnap.data()?.name || "匿名",
+                    userId: currentUser.uid,
+                    createdAt: serverTimestamp()
+                });
+                e.target.value = "";
+            } catch (error) {
+                console.error("コメントの投稿に失敗しました:", error);
+                alert("コメントの投稿に失敗しました。");
+            }
         }
     };
 
