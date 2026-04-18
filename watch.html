@@ -9,7 +9,7 @@
         .logo { font-size: 20px; font-weight: bold; text-decoration: none; color: #ff0000; }
         .main-layout { display: grid; grid-template-columns: 1fr 350px; max-width: 1280px; margin: 0 auto; gap: 24px; padding: 20px; }
         .video-container { width: 100%; }
-        .video-wrapper { width: 100%; background: #000; border-radius: 12px; overflow: hidden; }
+        .video-wrapper { width: 100%; background: #000; border-radius: 12px; overflow: hidden; line-height: 0; }
         video { width: 100%; aspect-ratio: 16/9; background: #000; display: block; }
         .v-title { font-size: 20px; font-weight: bold; margin: 12px 0 8px; }
         .v-meta { font-size: 14px; color: #606060; margin-bottom: 15px; }
@@ -24,14 +24,11 @@
         .btn-like { background: #f2f2f2; color: #000; padding: 8px 16px; border-radius: 20px; border: none; font-size: 14px; cursor: pointer; }
         .btn-del { background: #ff7070; color: #fff; padding: 8px 16px; border-radius: 20px; border: none; display: none; cursor: pointer; }
         .sidebar { display: flex; flex-direction: column; gap: 12px; }
-        .related-card { display: flex; gap: 8px; text-decoration: none; color: inherit; }
-        .related-thumb { width: 160px; height: 90px; border-radius: 8px; object-fit: cover; background: #eee; }
-        .related-info { display: flex; flex-direction: column; gap: 4px; }
-        .related-title { font-size: 14px; font-weight: bold; line-height: 1.2; }
+        .related-card { display: flex; gap: 8px; text-decoration: none; color: inherit; margin-bottom: 8px; }
+        .related-thumb { width: 160px; height: 90px; border-radius: 8px; object-fit: cover; background: #eee; flex-shrink: 0; }
+        .related-title { font-size: 14px; font-weight: bold; line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
         .comment-section { margin-top: 24px; }
-        .comment-item { margin-bottom: 16px; font-size: 14px; }
         .admin-badge { color: #ff0000; font-weight: bold; font-size: 12px; }
-        .official-badge { color: #007bff; font-weight: bold; font-size: 12px; }
         .admin-editable { cursor: pointer; border-bottom: 1px dotted #ccc; }
         @media (max-width: 1000px) { .main-layout { grid-template-columns: 1fr; } }
     </style>
@@ -49,7 +46,7 @@
         <div class="v-meta">再生回数 <span id="viewNum" class="stat-val">0</span>回</div>
         <div class="action-bar">
             <div class="author-section">
-                <img id="authorIcon" class="author-icon">
+                <img id="authorIcon" class="author-icon" src="">
                 <div class="author-name-wrap">
                     <div id="authorName" class="author-name"></div>
                     <div class="sub-count">登録者 <span id="subNum" class="stat-val">0</span>人</div>
@@ -63,7 +60,6 @@
         </div>
         <div class="comment-section">
             <div id="commentHeader" class="comment-header">コメント 0件</div>
-            <input type="text" id="commentInput" style="width:100%; padding:8px; margin-bottom:20px;" placeholder="コメントを追加...">
             <div id="commentList"></div>
         </div>
     </div>
@@ -72,7 +68,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, collection, query, updateDoc, addDoc, serverTimestamp, onSnapshot, deleteDoc, orderBy, limit, getDocs, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, collection, query, updateDoc, onSnapshot, deleteDoc, orderBy, limit, getDocs, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = { 
@@ -89,20 +85,12 @@
     const auth = getAuth(app);
     const vid = new URLSearchParams(window.location.search).get("id");
     const ADMIN_UID = "tP5CqCTRO3f2QQ8jdoj0ftY8kZU2";
-    const OFFICIAL_UID = "UUgBXquGY5O2iDADKpwNUU0i5Ct2";
-    let currentUser = null;
+    
     let videoAuthorId = "";
 
     onAuthStateChanged(auth, user => {
-        currentUser = user;
         if(user && vid && user.uid === ADMIN_UID) setupAdmin();
     });
-
-    function getBadge(uid) {
-        if(uid === ADMIN_UID) return '<span class="admin-badge">[運営]</span>';
-        if(uid === OFFICIAL_UID) return '<span class="official-badge">[公式]</span>';
-        return '';
-    }
 
     async function load() {
         if(!vid) return;
@@ -112,8 +100,14 @@
         const v = vSnap.data();
         videoAuthorId = v.userId;
 
+        // 【修復】壊れた.jpgのURLを強引に動画として再生させる
         const player = document.getElementById('player');
-        if(v.url) { player.src = v.url; player.load(); }
+        if(v.url) {
+            let movieUrl = v.url.replace('.jpg', '.mp4');
+            player.src = movieUrl;
+            player.load();
+            player.onerror = () => { if(player.src !== v.url) { player.src = v.url; player.load(); } };
+        }
 
         document.getElementById('vTitle').innerText = v.title;
         document.getElementById('viewNum').innerText = (v.views || 0).toLocaleString();
@@ -124,7 +118,7 @@
             const uSnap = await getDoc(doc(db, "users", v.userId));
             if (uSnap.exists()) {
                 const u = uSnap.data();
-                document.getElementById('authorName').innerHTML = (u.name || "不明") + getBadge(v.userId);
+                document.getElementById('authorName').innerHTML = (u.name || "不明") + (v.userId === ADMIN_UID ? '<span class="admin-badge">[運営]</span>' : '');
                 document.getElementById('authorIcon').src = u.icon || "";
                 document.getElementById('subNum').innerText = (u.subscribers || 0).toLocaleString();
             }
@@ -138,7 +132,7 @@
             list.innerHTML = "";
             snap.forEach(d => {
                 const c = d.data();
-                list.innerHTML += `<div class="comment-item"><strong>${c.userName || '匿名'}${getBadge(c.userId)}</strong><br>${c.text}</div>`;
+                list.innerHTML += `<div class="comment-item"><strong>${c.userName || '匿名'}</strong><br>${c.text}</div>`;
             });
         });
     }
@@ -150,7 +144,6 @@
         snap.forEach(d => {
             if(d.id === vid) return;
             const data = d.data();
-            // Cloudinaryの自動サムネイル生成を利用 (拡張子を.jpgに変えるだけ)
             let thumb = data.thumbnail || (data.url ? data.url.replace(/\.[^/.]+$/, ".jpg") : "");
             const card = document.createElement('a');
             card.href = `watch.html?id=${d.id}`;
@@ -178,14 +171,6 @@
             };
         });
     }
-
-    document.getElementById('commentInput').onkeypress = async (e) => {
-        if (e.key === 'Enter' && currentUser && e.target.value.trim()) {
-            const uSnap = await getDoc(doc(db, "users", currentUser.uid));
-            await addDoc(collection(db, "videos", vid, "comments"), { text: e.target.value, userName: uSnap.data()?.name || "匿名", userId: currentUser.uid, createdAt: serverTimestamp() });
-            e.target.value = "";
-        }
-    };
 
     load();
 </script>
